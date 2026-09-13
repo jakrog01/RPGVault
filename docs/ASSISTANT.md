@@ -2,7 +2,9 @@
 
 The assistant indexes Markdown locally. Every query is filtered to the active run before it is ranked. A GM scope includes its run, campaign, party, shared system library, and campaign mechanics. A player scope includes only its run and party. Archive, shipped files, local overrides, application data, excluded notes, and player-hidden notes are never returned.
 
-The shipped policy is `_system/assistant/scope.json`. A local policy may be placed at `_local/assistant/scope.json`. The active pointer is evaluated for every query, so changing `Active.md` changes the visible scope immediately.
+The shipped policy is `_system/assistant/scope.json`. A local policy at `_local/assistant/scope.json` overrides it. Both use `{ "version": 1, "gm": ["kind"], "player": ["kind"] }`; omitted kinds are excluded. Policy changes reload immediately. Invalid local policy falls back to the shipped policy.
+
+Rules use hard campaign boundaries. House rules take precedence over campaign homebrew, which takes precedence over the active system library. Rules tied to a campaign link are visible only to that campaign; rules without a campaign link must match the active system.
 
 Pinned run, day, combat, attached, and active-note material is sent first. Relevant chunks are then added within the context budget and cited as wikilinks. Large pinned notes provide an outline and a link to indexed material.
 

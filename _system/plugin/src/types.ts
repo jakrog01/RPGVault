@@ -69,8 +69,15 @@ export interface Scope {
   runFolder: string;
   campaignFolder: string;
   partyFolder: string;
+  campaignPath: string;
   roots: { path: string; kind: SourceKind }[];
   key: string;
+}
+
+export interface ScopePolicy {
+  version: 1;
+  gm: SourceKind[];
+  player: SourceKind[];
 }
 
 export interface Chunk {

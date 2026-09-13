@@ -2,7 +2,7 @@
   "contentRoots": ["Campaigns", "Parties", "Runs", "Library", "Calendar", "Archive"],
   "ownedGlobs": ["_system/**", ".obsidian/**", ".rpgvault/state.json", "Home.md", "README.md", "CHANGELOG.md", "docs/**", ".github/**"],
   "contractualNames": ["Active.md", "Campaign.md", "Party.md", "Run.md", "State.md", "Dashboard.md", "Radar.md", "World Day.md"],
-  "runtimeReadOnlyAllowlist": ["_system/assistant/skills"],
+  "runtimeReadOnlyAllowlist": ["_system/assistant/scope.json", "_system/assistant/skills"],
   "asciiAllowlist": ["_system/obsidian/plugins/calendarium/main.js"],
   "referenceFolders": ["Library/Mechanics/*/Spells", "Library/Mechanics/*/Bestiary", "Library/Mechanics/*/Items"],
   "neverTouch": [".obsidian/workspace.json", ".obsidian/workspace-mobile.json", ".obsidian/plugins/table-tools/data.json", ".obsidian/plugins/calendarium/data.json"],

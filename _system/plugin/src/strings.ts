@@ -246,6 +246,7 @@ export const englishStrings = {
   assistantToolTrace: "Tools used",
   assistantIndexing: "Indexing {count}...",
   assistantIndexed: "Indexed {notes} notes and {chunks} chunks.",
+  assistantScopePolicyInvalid: "Assistant scope policy is invalid; the shipped policy is in use.",
   attachNoteTitle: "Attach a specific note to the context",
   attachNotePlaceholder: "Attach a note to the context\u2026",
   newConversation: "New conversation",

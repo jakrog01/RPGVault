@@ -143,12 +143,21 @@ export class AssistantIndex {
     if (chunk.excluded || (scope.role === "player" && chunk.gmOnly)) return false;
     const rooted = sourceKind(scope, chunk.path);
     if (rooted) return true;
-    if (scope.role !== "gm" || chunk.type !== "rules") return false;
-    if (chunk.system === scope.system) return true;
-    if (!scope.campaignFolder || !chunk.campaignLink) return false;
-    const file = this.plugin.app.vault.getAbstractFileByPath(chunk.path);
-    const target = file instanceof TFile ? this.plugin.app.metadataCache.getFirstLinkpathDest(String(chunk.campaignLink).replace(/^\[\[/, "").replace(/\]\]$/, "").split("|")[0], file.path) : null;
-    return target?.parent?.path === scope.campaignFolder;
+    if (!scope.runFolder || scope.role !== "gm" || chunk.type !== "rules") return false;
+    if (chunk.path.startsWith("Campaigns/")) return false;
+    if (/^Library\/Mechanics\//.test(chunk.path)) return false;
+    if (chunk.campaignLink) {
+      const file = this.plugin.app.vault.getAbstractFileByPath(chunk.path);
+      const target = file instanceof TFile
+        ? this.plugin.app.metadataCache.getFirstLinkpathDest(this.linkPath(chunk.campaignLink), file.path)
+        : null;
+      return target?.path === scope.campaignPath;
+    }
+    return chunk.system === scope.system;
+  }
+
+  private linkPath(value: string): string {
+    return value.replace(/^\[\[/, "").replace(/\]\]$/, "").split("|")[0].split("#")[0];
   }
   search(query: string, scope = this.scope(), limit = 50): { chunk: Chunk; score: number }[] {
     const exact = this.lexical.findByName(query, chunk => this.allowed(scope, chunk));

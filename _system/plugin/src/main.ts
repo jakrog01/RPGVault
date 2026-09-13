@@ -3,7 +3,7 @@ import { AssistantView, ASSISTANT_VIEW } from "./assistant";
 import { CombatTracker, CombatView, COMBAT_VIEW, newCombat } from "./combat";
 import { listModels } from "./gemini";
 import { createStrings, englishStrings, format, Strings } from "./strings";
-import { Combat, DEFAULTS, EncounterSet, Settings } from "./types";
+import { Combat, DEFAULTS, EncounterSet, ScopePolicy, Settings, SourceKind } from "./types";
 import { AssistantIndex } from "./indexer";
 import { Skill, loadSkills } from "./tools";
 
@@ -11,6 +11,8 @@ interface PluginData { settings: Settings; combat: Combat; encounterSets: Encoun
 export interface RunContext { run: TFile; campaign: TFile; party: TFile; state: TFile; day: TFile | null }
 
 const STRINGS_OVERRIDE = "_local/plugins/table-tools/strings.json";
+const SCOPE_PATHS = ["_local/assistant/scope.json", "_system/assistant/scope.json"];
+const SOURCE_KINDS: SourceKind[] = ["run", "state", "campaign", "party", "system", "homebrew", "house-rule", "note"];
 
 export default class TableTools extends Plugin {
   settings: Settings = { ...DEFAULTS };
@@ -22,12 +24,18 @@ export default class TableTools extends Plugin {
   views = new Set<CombatView>();
   index!: AssistantIndex;
   skills = new Map<string, Skill>();
+  scopePolicy: ScopePolicy = { version: 1, gm: [...SOURCE_KINDS], player: ["run", "state", "party", "note"] };
 
   async onload(): Promise<void> {
     await this.loadStrings();
     await this.loadSettings();
+    await this.loadScopePolicy();
     this.index = new AssistantIndex(this);
     this.index.start();
+    const vaultEvents = this.app.vault as typeof this.app.vault & { on: (event: string, callback: (file: TFile) => void) => unknown };
+    for (const event of ["create", "modify", "delete"]) this.registerEvent(vaultEvents.on(event, file => {
+      if (file instanceof TFile && SCOPE_PATHS.includes(file.path)) void this.loadScopePolicy();
+    }) as never);
     this.skills = await loadSkills(this);
     const s = this.strings;
     this.registerView(COMBAT_VIEW, leaf => new CombatView(leaf, this));
@@ -66,6 +74,24 @@ export default class TableTools extends Plugin {
       this.strings = { ...englishStrings };
       new Notice(this.strings.stringsOverrideInvalid);
     }
+  }
+
+  async loadScopePolicy(): Promise<void> {
+    for (const path of SCOPE_PATHS) {
+      try {
+        const value = JSON.parse(await this.app.vault.adapter.read(path)) as Partial<ScopePolicy>;
+        if (value.version !== 1 || !this.validKinds(value.gm) || !this.validKinds(value.player)) throw new Error("invalid policy");
+        this.scopePolicy = { version: 1, gm: value.gm, player: value.player };
+        return;
+      } catch {
+        if (path.startsWith("_local") && await this.app.vault.adapter.exists(path)) new Notice(this.strings.assistantScopePolicyInvalid);
+      }
+    }
+    this.scopePolicy = { version: 1, gm: [...SOURCE_KINDS], player: ["run", "state", "party", "note"] };
+  }
+
+  private validKinds(value: unknown): value is SourceKind[] {
+    return Array.isArray(value) && value.every(kind => SOURCE_KINDS.includes(kind as SourceKind));
   }
 
 
