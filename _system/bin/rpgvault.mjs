@@ -373,6 +373,17 @@ const adopt = async args => {
       current[newKey] = rewrites && typeof imported[oldKey] === 'string' && Object.hasOwn(rewrites, imported[oldKey]) ? rewrites[imported[oldKey]] : imported[oldKey]
       names.push(newKey)
     }
+    for (const [parent, keyMap] of Object.entries(entry.nestedKeys ?? {})) {
+      if (!current[parent] || typeof current[parent] !== 'object' || Array.isArray(current[parent]) || !keyMap || typeof keyMap !== 'object') continue
+      const renamed = {}
+      for (const [oldKey, newKey] of Object.entries(keyMap)) {
+        if (!Object.hasOwn(current[parent], oldKey) || typeof newKey !== 'string') continue
+        const rewrites = entry.nestedRewrites?.[parent]?.[newKey]
+        renamed[newKey] = rewrites && typeof current[parent][oldKey] === 'string' && Object.hasOwn(rewrites, current[parent][oldKey]) ? rewrites[current[parent][oldKey]] : current[parent][oldKey]
+        names.push(`${parent}.${newKey}`)
+      }
+      current[parent] = renamed
+    }
     await mkdir(path.dirname(target), { recursive: true })
     await writeJson(target, current)
     report.pluginKeys.push({ plugin: entry.to, keys: names })
