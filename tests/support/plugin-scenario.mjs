@@ -403,6 +403,9 @@ export async function runScenario({ override } = {}) {
   const assistant = env.leaves.find(leaf => leaf.type === "tt-assistant").view
   env.record(assistant.getDisplayText())
   const panel = () => assistant.contentEl
+  const reindex = plugin.index.rebuild(true)
+  assistant.render()
+  await reindex
   assert.equal(byText(panel(), s.assistantNeedsKey).length, 1)
   await assistant.send("Hello")
   assert.ok(notices.includes(s.noApiKey))

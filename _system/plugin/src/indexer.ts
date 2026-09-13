@@ -23,6 +23,7 @@ export class AssistantIndex {
   private starting = false;
   private idleWaiters: (() => void)[] = [];
   private listeners = new Set<() => void>();
+  private notifyTimer?: number;
   private restored: Promise<void>;
 
   constructor(private readonly plugin: TableTools) { this.restored = this.restore(); }
@@ -48,13 +49,14 @@ export class AssistantIndex {
   async dispose(): Promise<void> {
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
+    if (this.notifyTimer) clearTimeout(this.notifyTimer);
+    this.notifyTimer = undefined;
     if (this.persistTimer) clearTimeout(this.persistTimer);
     this.persistTimer = undefined;
     await this.persist();
   }
 
   scope(): Scope { return resolveScope(this.plugin); }
-  invalidateScope(): void {}
   whenIdle(): Promise<void> { return this.running || this.starting || this.timers.size ? new Promise(resolve => this.idleWaiters.push(resolve)) : Promise.resolve(); }
   stats(): { notes: number; chunks: number; pending: number } {
     const scope = this.scope();
@@ -63,8 +65,15 @@ export class AssistantIndex {
   }
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   private changed(): void {
-    for (const listener of this.listeners) listener();
+    this.queueNotify();
     if (!this.running && !this.starting && !this.timers.size) for (const resolve of this.idleWaiters.splice(0)) resolve();
+  }
+  private queueNotify(): void {
+    if (this.notifyTimer) return;
+    this.notifyTimer = setTimeout(() => {
+      this.notifyTimer = undefined;
+      for (const listener of this.listeners) listener();
+    }, 250) as unknown as number;
   }
   status(): string {
     const { notes, chunks, pending } = this.stats();
@@ -73,21 +82,31 @@ export class AssistantIndex {
 
   private schedule(file: TFile): void {
     const old = this.timers.get(file.path); if (old) clearTimeout(old);
-    this.timers.set(file.path, setTimeout(() => { this.timers.delete(file.path); this.invalidateScope(); void this.update(file, true, true); this.changed(); }, 1500) as unknown as number);
+    this.timers.set(file.path, setTimeout(() => {
+      this.timers.delete(file.path);
+      this.running++;
+      this.changed();
+      void this.update(file, true, true).finally(() => {
+        this.running--;
+        this.changed();
+      });
+    }, 1500) as unknown as number);
     this.changed();
   }
 
-  async rebuild(): Promise<void> {
+  async rebuild(force = false): Promise<void> {
     this.busy++;
     this.running++;
     this.changed();
     try {
-      const files = this.plugin.app.vault.getMarkdownFiles(); this.indexedFiles = 0;
+      const files = this.plugin.app.vault.getMarkdownFiles();
+      const paths = new Set(files.map(file => file.path));
+      this.indexedFiles = 0;
       for (let index = 0; index < files.length; index++) {
-        await this.update(files[index], false, false);
+        await this.update(files[index], false, force);
         if (index % 32 === 31) await new Promise<void>(resolve => setTimeout(resolve, 0));
       }
-      for (const path of [...this.records.keys()]) if (!files.some(file => file.path === path)) this.drop(path, false);
+      for (const path of [...this.records.keys()]) if (!paths.has(path)) this.drop(path, false);
       this.queuePersist();
     } finally { this.busy--; this.running--; this.changed(); }
   }
