@@ -7,7 +7,11 @@ import { Chunk, Scope } from "./types";
 import { format } from "./strings";
 
 const cachePath = ".rpgvault/cache/assistant/manifest.json";
-const version = 3;
+const version = 4;
+
+export type ScoredChunk = { chunk: Chunk; score: number };
+const rulePriority = (kind: Chunk["kind"]): number => kind === "house-rule" ? 3 : kind === "homebrew" ? 2 : kind === "system" ? 1 : 0;
+export const compareRuleHits = (left: ScoredChunk, right: ScoredChunk): number => rulePriority(right.chunk.kind) - rulePriority(left.chunk.kind) || right.score - left.score;
 
 interface Stamp { mtime: number; size: number }
 
@@ -140,7 +144,7 @@ export class AssistantIndex {
 
   private drop(path: string, persist = true): void { const chunks = this.records.get(path); if (!chunks) return; for (const chunk of chunks) this.lexical.remove(chunk.id); this.records.delete(path); this.stamps.delete(path); if (persist) this.queuePersist(); this.changed(); }
   private allowed(scope: Scope, chunk: Chunk): boolean {
-    if (chunk.excluded || (scope.role === "player" && chunk.gmOnly)) return false;
+    if (chunk.excluded || scope.exclude.some(prefix => chunk.path === prefix.replace(/\/$/, "") || chunk.path.startsWith(prefix)) || !scope.kinds.includes(chunk.kind) || (scope.role === "player" && chunk.gmOnly)) return false;
     const rooted = sourceKind(scope, chunk.path);
     if (rooted) return true;
     if (!scope.runFolder || scope.role !== "gm" || chunk.type !== "rules") return false;

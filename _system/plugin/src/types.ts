@@ -59,7 +59,7 @@ export interface EncounterMember { source: string; name: string; quantity: numbe
 export interface EncounterSet { name: string; description: string; members: EncounterMember[] }
 
 export interface ToolTrace { name: string; args: Record<string, unknown>; summary: string }
-export interface ChatMessage { role: "user" | "model"; text: string; time: number; parts?: unknown[]; toolTrace?: ToolTrace[] }
+export interface ChatMessage { role: "user" | "model"; text: string; time: number; parts?: unknown[]; toolTrace?: ToolTrace[]; sources?: string[] }
 
 export type SourceKind = "run" | "state" | "campaign" | "party" | "system" | "homebrew" | "house-rule" | "note";
 
@@ -71,11 +71,14 @@ export interface Scope {
   partyFolder: string;
   campaignPath: string;
   roots: { path: string; kind: SourceKind }[];
+  kinds: SourceKind[];
+  exclude: string[];
   key: string;
 }
 
 export interface ScopePolicy {
   version: 1;
+  exclude?: string[];
   gm: SourceKind[];
   player: SourceKind[];
 }

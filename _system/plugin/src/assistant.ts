@@ -4,6 +4,7 @@ import { streamTurn } from "./gemini";
 import { StringKey, Strings } from "./strings";
 import { ChatMessage, Settings } from "./types";
 import { declarations, VaultTools } from "./tools";
+import { compareRuleHits } from "./indexer";
 
 export const ASSISTANT_VIEW = "tt-assistant";
 
@@ -225,7 +226,9 @@ export class AssistantView extends ItemView {
       if (settings.contextRetrieval) {
         const pinned = new Set(this.attachments);
         if (settings.includeActiveNote) { const active = this.app.workspace.getActiveFile(); if (active) pinned.add(active.path); }
-        const retrieved = this.plugin.index.search(`${previousQuestion} ${question}`, scope, 50).filter(hit => !pinned.has(hit.chunk.path));
+        const hits = this.plugin.index.search(`${previousQuestion} ${question}`, scope, 50).filter(hit => !pinned.has(hit.chunk.path));
+        const rules = hits.filter(hit => ["house-rule", "homebrew", "system"].includes(hit.chunk.kind)).sort(compareRuleHits);
+        const retrieved = [...rules, ...hits.filter(hit => !["house-rule", "homebrew", "system"].includes(hit.chunk.kind))];
         const selected: string[] = []; let used = Math.ceil(parts.join("\n").length / 4);
         for (const hit of retrieved) {
           const item = `[[${hit.chunk.path}#${hit.chunk.breadcrumb}]]\n${hit.chunk.text}`;

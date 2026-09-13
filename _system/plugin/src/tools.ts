@@ -2,6 +2,8 @@ import { TFile } from "obsidian";
 import type TableTools from "./main";
 import { roll } from "./dice";
 import { AssistantIndex } from "./indexer";
+import { assistantLayerPaths } from "./scope";
+import { compareRuleHits } from "./indexer";
 
 export interface Skill { name: string; description: string; body: string; system?: string; tools: string[]; path: string }
 export interface ToolCall { name: string; args: Record<string, unknown>; id?: string }
@@ -49,8 +51,7 @@ export class VaultTools {
       return { results: files.slice(0, 100).map(file => ({ path: file.path, title: file.basename, frontmatter: this.plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {} })) };
     }
     if (name === "lookup_rule") {
-      const priority = (kind: string): number => kind === "house-rule" ? 3 : kind === "homebrew" ? 2 : kind === "system" ? 1 : 0;
-      return { results: this.index.search(String(args.query ?? ""), scope, 50).filter(hit => ["house-rule", "homebrew", "system"].includes(hit.chunk.kind)).sort((left, right) => priority(right.chunk.kind) - priority(left.chunk.kind) || right.score - left.score).slice(0, 8).map(hit => ({ citation: `[[${hit.chunk.path}#${hit.chunk.breadcrumb}]]`, text: cap(hit.chunk.text), kind: hit.chunk.kind })) };
+      return { results: this.index.search(String(args.query ?? ""), scope, 50).filter(hit => ["house-rule", "homebrew", "system"].includes(hit.chunk.kind)).sort(compareRuleHits).slice(0, 8).map(hit => ({ citation: `[[${hit.chunk.path}#${hit.chunk.breadcrumb}]]`, text: cap(hit.chunk.text), kind: hit.chunk.kind })) };
     }
     if (name === "get_run_state") {
       const context = this.plugin.currentContext(); const read = async (file: TFile | null | undefined) => file ? await this.plugin.app.vault.cachedRead(file) : "";
@@ -64,7 +65,7 @@ export class VaultTools {
 }
 
 export async function loadSkills(plugin: TableTools): Promise<Map<string, Skill>> {
-  const paths = ["_system/assistant/skills", "_local/assistant/skills"];
+  const paths = [...assistantLayerPaths("skills")].reverse();
   const scope = plugin.index?.scope(); if (scope?.campaignFolder) paths.push(`${scope.campaignFolder}/Assistant/skills`);
   const result = new Map<string, Skill>();
   for (const file of plugin.app.vault.getMarkdownFiles()) {

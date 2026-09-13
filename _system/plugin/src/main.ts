@@ -6,12 +6,13 @@ import { createStrings, englishStrings, format, Strings } from "./strings";
 import { Combat, DEFAULTS, EncounterSet, ScopePolicy, Settings, SourceKind } from "./types";
 import { AssistantIndex } from "./indexer";
 import { Skill, loadSkills } from "./tools";
+import { assistantLayerPaths } from "./scope";
 
 interface PluginData { settings: Settings; combat: Combat; encounterSets: EncounterSet[] }
 export interface RunContext { run: TFile; campaign: TFile; party: TFile; state: TFile; day: TFile | null }
 
 const STRINGS_OVERRIDE = "_local/plugins/table-tools/strings.json";
-const SCOPE_PATHS = ["_local/assistant/scope.json", "_system/assistant/scope.json"];
+const SCOPE_PATHS = assistantLayerPaths("scope.json");
 const SOURCE_KINDS: SourceKind[] = ["run", "state", "campaign", "party", "system", "homebrew", "house-rule", "note"];
 
 export default class TableTools extends Plugin {
@@ -81,7 +82,8 @@ export default class TableTools extends Plugin {
       try {
         const value = JSON.parse(await this.app.vault.adapter.read(path)) as Partial<ScopePolicy>;
         if (value.version !== 1 || !this.validKinds(value.gm) || !this.validKinds(value.player)) throw new Error("invalid policy");
-        this.scopePolicy = { version: 1, gm: value.gm, player: value.player };
+        if (value.exclude !== undefined && (!Array.isArray(value.exclude) || !value.exclude.every(prefix => typeof prefix === "string"))) throw new Error("invalid policy");
+        this.scopePolicy = { version: 1, exclude: value.exclude, gm: value.gm, player: value.player };
         return;
       } catch {
         if (path.startsWith("_local") && await this.app.vault.adapter.exists(path)) new Notice(this.strings.assistantScopePolicyInvalid);
