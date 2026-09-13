@@ -95,7 +95,8 @@ const doctor = async () => {
   const failures = []
   for (const folder of manifest.contentRoots) if (!(await exists(path.join(root, folder)))) failures.push(`missing content root: ${folder}`)
   const allowedDirectories = new Set(['_system', '_local', '.obsidian', '.rpgvault', '.git', '.github', 'docs', 'tests', 'node_modules', '.trash', ...manifest.contentRoots])
-  const allowedFiles = new Set(['Active.md', 'Home.md', 'README.md', 'CHANGELOG.md', 'package.json', '.gitignore', '.gitattributes'])
+  // A worktree or submodule checkout has a .git file instead of a directory.
+  const allowedFiles = new Set(['.git', 'Active.md', 'Home.md', 'README.md', 'CHANGELOG.md', 'package.json', '.gitignore', '.gitattributes'])
   for (const entry of await readdir(root, { withFileTypes: true })) {
     if (entry.isDirectory() && !allowedDirectories.has(entry.name)) failures.push(`undeclared root: ${entry.name}`)
     if (entry.isFile() && !allowedFiles.has(entry.name)) failures.push(`undeclared root file: ${entry.name}`)
