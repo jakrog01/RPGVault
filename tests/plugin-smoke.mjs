@@ -26,7 +26,8 @@ class FuzzySuggestModal extends Modal {}
 class PluginSettingTab { constructor(app) { this.app = app; this.containerEl = new Element() } }
 class Setting { setName() { return this } setDesc() { return this } setHeading() { return this } addText(callback) { callback(new Control()); return this } addTextArea(callback) { callback(new Control()); return this } addDropdown(callback) { callback(new Control()); return this } addButton(callback) { callback(new Control()); return this } addSlider(callback) { callback(new Control()); return this } addToggle(callback) { callback(new Control()); return this } }
 class Control { inputEl = { type: "", style: {} }; setValue() { return this } setPlaceholder() { return this } onChange() { return this } addOption() { return this } setLimits() { return this } setButtonText() { return this } onClick() { return this } }
-class Notice {}
+const notices = []
+class Notice { constructor(message) { notices.push(message) } }
 
 const require = createRequire(import.meta.url)
 const moduleApi = require("node:module")
@@ -44,4 +45,30 @@ await plugin.onload()
 assert.equal(plugin.strings.combat, "Encounter")
 for (const factory of plugin.views.values()) { const view = factory({ app }); await view.onOpen(); }
 for (const command of plugin.commands) { if (command.callback) command.callback(); if (command.editorCallback) await command.editorCallback({ getSelection: () => "" }); }
+const combat = plugin.views.get("tt-combat")({ app })
+const player = { id: "player", name: "Hero", kind: "player", initiative: 10, modifier: 0, ac: 15, hpMax: 20, hp: 20, temporaryHp: 5, conditions: [], note: "", hidden: false }
+plugin.combat.participants = [player]
+combat.applyRowInput(player, "12")
+assert.equal(player.temporaryHp, 0)
+assert.equal(player.hp, 13)
+combat.applyRowInput(player, "+30")
+assert.equal(player.hp, 20)
+combat.applyRowInput(player, "t8")
+combat.applyRowInput(player, "t4")
+assert.equal(player.temporaryHp, 8)
+const entries = plugin.combat.log.length
+combat.applyRowInput(player, "abc")
+assert.equal(plugin.combat.log.length, entries)
+assert.ok(notices.length > 0)
+combat.applyRowInput(player, "28")
+assert.equal(player.hp, 0)
+assert.ok(player.conditions.includes(plugin.strings.conditionDying))
+combat.applyRowInput(player, "+1")
+assert.equal(player.hp, 1)
+assert.equal(player.conditions.includes(plugin.strings.conditionDying), false)
+combat.setNote(player, "Watch the gate")
+combat.setHidden(player, true)
+assert.equal(player.note, "Watch the gate")
+assert.equal(player.hidden, true)
+assert.ok(plugin.combat.log.length > entries)
 console.log("plugin smoke gate: clean")
