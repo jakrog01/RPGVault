@@ -73,8 +73,6 @@ export interface Scope {
   key: string;
 }
 
-export interface ScopePolicy { gm: SourceKind[]; player: SourceKind[] }
-
 export interface Chunk {
   id: string;
   path: string;

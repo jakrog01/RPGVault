@@ -189,7 +189,7 @@ export function createEnvironment() {
       getAbstractFileByPath: filePath => files.get(filePath)?.file ?? null,
       cachedRead: async file => files.get(file.path)?.content ?? "",
       append: async (file, text) => { files.get(file.path).content += text; appended.push(text); record(text) },
-      adapter: { read: async filePath => { if (!adapterFiles.has(filePath)) throw new Error("missing"); return adapterFiles.get(filePath) }, write: async (filePath, value) => adapterFiles.set(filePath, value), mkdir: async () => {} },
+      adapter: { read: async filePath => { if (!adapterFiles.has(filePath)) throw new Error("missing"); return adapterFiles.get(filePath) }, write: async (filePath, value) => adapterFiles.set(filePath, value), mkdir: async () => {}, exists: async filePath => adapterFiles.has(filePath), rename: async (from, to) => { adapterFiles.set(to, adapterFiles.get(from)); adapterFiles.delete(from) } },
       on,
     },
     metadataCache: {

@@ -6,10 +6,14 @@ const tokens = (value: string): number => Math.ceil(value.length / 4);
 
 const clean = (value: string): string => value.replace(/<%[\s\S]*?%>/g, "").replace(/!\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g, "$1").replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (_match, target, label) => label || target).trim();
 
-const hash = async (value: string): Promise<string> => {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest(["S", "HA-256"].join(""), bytes);
-  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+const hash = (value: string): string => {
+  let first = 2166136261;
+  let second = 2246822519;
+  for (let index = 0; index < value.length; index++) {
+    first = Math.imul(first ^ value.charCodeAt(index), 16777619);
+    second = Math.imul(second ^ value.charCodeAt(index), 3266489917);
+  }
+  return `${(first >>> 0).toString(16)}${(second >>> 0).toString(16)}`;
 };
 
 const stringList = (value: unknown): string[] => Array.isArray(value) ? value.map(String) : value === undefined ? [] : [String(value)];
@@ -41,7 +45,7 @@ export async function chunkFile(plugin: TableTools, file: TFile, kind: SourceKin
   if (!whole) for (const section of sections) {
     if (tokens(section.body) <= 600) {
       const previous = pieces[pieces.length - 1];
-      if (previous && tokens(previous.body) < 200) previous.body += `\n\n${section.body}`;
+      if (previous && previous.heading === section.heading && tokens(previous.body) < 200) previous.body += `\n\n${section.body}`;
       else pieces.push(section);
       continue;
     }
@@ -52,10 +56,11 @@ export async function chunkFile(plugin: TableTools, file: TFile, kind: SourceKin
     }
     if (current) pieces.push({ heading: section.heading, body: current });
   }
-  return Promise.all(pieces.map(async (piece, ordinal) => {
+  const metadata = JSON.stringify({ type, system, status: frontmatter.status, aliases, tags: frontmatter.tags, gmOnly: frontmatter["gm-only"], assistant: frontmatter.assistant, campaign: frontmatter.campaign, subtype: frontmatter.subtype });
+  return pieces.map((piece, ordinal) => {
     const breadcrumb = piece.heading || title;
     const text = piece.body;
     const indexedText = `${file.path} > ${breadcrumb} | type: ${type}${system ? ` | system: ${system}` : ""}\n${text}`;
-    return { id: `${file.path}#${breadcrumb}#${ordinal}`, path: file.path, breadcrumb, ordinal, text, indexedText, hash: await hash(text), title, aliases, type, system, status: String(frontmatter.status ?? ""), tags: stringList(frontmatter.tags), links: stringList(frontmatter.links), kind };
-  }));
+    return { id: `${file.path}#${breadcrumb}#${ordinal}`, path: file.path, breadcrumb, ordinal, text, indexedText, hash: hash(`${text}\n${metadata}`), title, aliases, type, system, status: String(frontmatter.status ?? ""), tags: stringList(frontmatter.tags), links: stringList(frontmatter.links), kind, gmOnly: frontmatter["gm-only"] === true, excluded: frontmatter.assistant === "exclude", campaignLink: String(frontmatter.campaign ?? "") };
+  });
 }

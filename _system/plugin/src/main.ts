@@ -27,7 +27,7 @@ export default class TableTools extends Plugin {
     await this.loadStrings();
     await this.loadSettings();
     this.index = new AssistantIndex(this);
-    await this.index.start();
+    this.index.start();
     this.skills = await loadSkills(this);
     const s = this.strings;
     this.registerView(COMBAT_VIEW, leaf => new CombatView(leaf, this));
@@ -38,7 +38,7 @@ export default class TableTools extends Plugin {
 
     this.addCommand({ id: "open-combat", name: s.commandOpenCombat, callback: () => void this.openView(COMBAT_VIEW) });
     this.addCommand({ id: "open-assistant", name: s.commandOpenAssistant, callback: () => void this.openView(ASSISTANT_VIEW) });
-    this.addCommand({ id: "assistant-rebuild-index", name: "Assistant: rebuild index", callback: () => void this.index.rebuild() });
+    this.addCommand({ id: "assistant-rebuild-index", name: s.commandRebuildAssistantIndex, callback: () => void this.index.rebuild() });
     this.addCommand({ id: "combat-next-turn", name: s.commandNextTurn, callback: () => this.tracker.advance(1) });
     this.addCommand({ id: "combat-previous-turn", name: s.commandPreviousTurn, callback: () => this.tracker.advance(-1) });
     this.addCommand({ id: "combat-roll-initiative", name: s.commandRollInitiative, callback: () => this.tracker.rollInitiative(false) });
@@ -55,7 +55,7 @@ export default class TableTools extends Plugin {
     this.addSettingTab(new TableToolsSettingTab(this.app, this));
   }
 
-  onunload(): void { this.index?.dispose(); }
+  async onunload(): Promise<void> { await this.index?.dispose(); }
 
   async loadStrings(): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(STRINGS_OVERRIDE);
@@ -67,6 +67,7 @@ export default class TableTools extends Plugin {
       new Notice(this.strings.stringsOverrideInvalid);
     }
   }
+
 
   async loadSettings(): Promise<void> {
     const data = await this.loadData() as Partial<PluginData> | null;
@@ -181,6 +182,10 @@ class TableToolsSettingTab extends PluginSettingTab {
     });
     new Setting(containerEl).setName(s.settingsContextLimit).setDesc(s.settingsContextLimitDescription)
       .addText(text => text.setValue(String(settings.maxContext)).onChange(value => { settings.maxContext = Number(value) || DEFAULTS.maxContext; save(); }));
+    new Setting(containerEl).setName(s.settingsContextBudget).setDesc(s.settingsContextBudgetDescription)
+      .addText(text => text.setValue(String(settings.contextBudgetTokens)).onChange(value => { settings.contextBudgetTokens = Number(value) || DEFAULTS.contextBudgetTokens; save(); }));
+    new Setting(containerEl).setName(s.settingsToolSteps).setDesc(s.settingsToolStepsDescription)
+      .addText(text => text.setValue(String(settings.maxToolSteps)).onChange(value => { settings.maxToolSteps = Number(value) || DEFAULTS.maxToolSteps; save(); }));
     const path = (name: string, key: "activePointerPath" | "campaignPath" | "worldDayPath" | "bestiaryPath" | "partyPath", description = ""): void => {
       const setting = new Setting(containerEl).setName(name);
       if (description) setting.setDesc(description);

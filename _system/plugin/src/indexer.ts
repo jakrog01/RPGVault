@@ -2,55 +2,109 @@ import { TFile } from "obsidian";
 import type TableTools from "./main";
 import { chunkFile } from "./chunker";
 import { LexicalIndex } from "./lexical";
-import { inScope, resolveScope } from "./scope";
+import { resolveScope, sourceKind } from "./scope";
 import { Chunk, Scope } from "./types";
+import { format } from "./strings";
 
 const cachePath = ".rpgvault/cache/assistant/manifest.json";
-const version = 1;
+const version = 3;
+
+interface Stamp { mtime: number; size: number }
 
 export class AssistantIndex {
   readonly lexical = new LexicalIndex();
   private records = new Map<string, Chunk[]>();
+  private stamps = new Map<string, Stamp>();
   private timers = new Map<string, number>();
   busy = 0;
+  private indexedFiles = 0;
+  private persistTimer?: number;
+  private running = 0;
+  private starting = false;
+  private idleWaiters: (() => void)[] = [];
+  private listeners = new Set<() => void>();
+  private restored: Promise<void>;
 
-  constructor(private readonly plugin: TableTools) {}
+  constructor(private readonly plugin: TableTools) { this.restored = this.restore(); }
 
-  async start(): Promise<void> {
-    this.plugin.registerEvent(this.plugin.app.metadataCache.on("resolved", () => void this.rebuild()));
+  start(): void {
+    let started = false;
+    const launch = (): void => {
+      if (started) return;
+      started = true;
+      this.starting = true;
+      this.changed();
+      void this.restored.then(() => this.rebuild()).finally(() => { this.starting = false; this.changed(); });
+    };
+    const resolved = this.plugin.app.metadataCache.on("resolved", launch);
+    this.plugin.registerEvent(resolved);
     this.plugin.registerEvent(this.plugin.app.metadataCache.on("changed", file => this.schedule(file)));
     this.plugin.registerEvent(this.plugin.app.vault.on("delete", file => { if (file instanceof TFile) this.drop(file.path); }));
     this.plugin.registerEvent(this.plugin.app.vault.on("rename", (file, oldPath) => { this.drop(oldPath); if (file instanceof TFile) this.schedule(file); }));
-    await this.restore();
-    await this.rebuild();
+    const workspace = this.plugin.app.workspace as typeof this.plugin.app.workspace & { onLayoutReady?: (callback: () => void) => void };
+    if (workspace.onLayoutReady) workspace.onLayoutReady(launch); else setTimeout(launch, 0);
   }
 
-  dispose(): void { for (const timer of this.timers.values()) clearTimeout(timer); this.timers.clear(); }
+  async dispose(): Promise<void> {
+    for (const timer of this.timers.values()) clearTimeout(timer);
+    this.timers.clear();
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = undefined;
+    await this.persist();
+  }
 
   scope(): Scope { return resolveScope(this.plugin); }
-  status(): string { const scope = this.scope(); const chunks = this.search("", scope, 100000).length; return this.busy ? `indexing ${this.busy}...` : `${chunks} notes indexed`; }
+  invalidateScope(): void {}
+  whenIdle(): Promise<void> { return this.running || this.starting || this.timers.size ? new Promise(resolve => this.idleWaiters.push(resolve)) : Promise.resolve(); }
+  stats(): { notes: number; chunks: number; pending: number } {
+    const scope = this.scope();
+    const chunks = this.lexical.all().filter(chunk => this.allowed(scope, chunk));
+    return { notes: new Set(chunks.map(chunk => chunk.path)).size, chunks: chunks.length, pending: this.running + this.timers.size + Number(this.starting) };
+  }
+  subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+  private changed(): void {
+    for (const listener of this.listeners) listener();
+    if (!this.running && !this.starting && !this.timers.size) for (const resolve of this.idleWaiters.splice(0)) resolve();
+  }
+  status(): string {
+    const { notes, chunks, pending } = this.stats();
+    return pending ? format(this.plugin.strings.assistantIndexing, { count: pending }) : format(this.plugin.strings.assistantIndexed, { notes, chunks });
+  }
 
   private schedule(file: TFile): void {
     const old = this.timers.get(file.path); if (old) clearTimeout(old);
-    this.timers.set(file.path, setTimeout(() => { this.timers.delete(file.path); void this.update(file); }, 1500) as unknown as number);
+    this.timers.set(file.path, setTimeout(() => { this.timers.delete(file.path); this.invalidateScope(); void this.update(file, true, true); this.changed(); }, 1500) as unknown as number);
+    this.changed();
   }
 
   async rebuild(): Promise<void> {
     this.busy++;
+    this.running++;
+    this.changed();
     try {
-      const files = this.plugin.app.vault.getMarkdownFiles();
-      for (const file of files) { await this.update(file, false); await new Promise<void>(resolve => setTimeout(resolve, 0)); }
-      this.reindex(); await this.persist();
-    } finally { this.busy--; }
+      const files = this.plugin.app.vault.getMarkdownFiles(); this.indexedFiles = 0;
+      for (let index = 0; index < files.length; index++) {
+        await this.update(files[index], false, false);
+        if (index % 32 === 31) await new Promise<void>(resolve => setTimeout(resolve, 0));
+      }
+      for (const path of [...this.records.keys()]) if (!files.some(file => file.path === path)) this.drop(path, false);
+      this.queuePersist();
+    } finally { this.busy--; this.running--; this.changed(); }
   }
 
-  async update(file: TFile, persist = true): Promise<void> {
+  async update(file: TFile, persist = true, force = false): Promise<void> {
     const global = this.globalKind(file);
     if (!global) { this.drop(file.path); return; }
+    const stamp = { mtime: file.stat?.mtime ?? 0, size: file.stat?.size ?? 0 };
+    const previousStamp = this.stamps.get(file.path);
+    if (!force && previousStamp?.mtime === stamp.mtime && previousStamp.size === stamp.size && this.records.has(file.path)) return;
     const chunks = await chunkFile(this.plugin, file, global);
     const before = this.records.get(file.path) ?? [];
+    this.stamps.set(file.path, stamp);
     if (before.length === chunks.length && before.every((chunk, index) => chunk.hash === chunks[index].hash)) return;
-    this.records.set(file.path, chunks); this.reindex(); if (persist) await this.persist();
+    for (const chunk of before) this.lexical.remove(chunk.id);
+    for (const chunk of chunks) this.lexical.add(chunk);
+    this.records.set(file.path, chunks); this.indexedFiles++; if (persist) this.queuePersist(); this.changed();
   }
 
   private globalKind(file: TFile): Chunk["kind"] | null {
@@ -61,14 +115,21 @@ export class AssistantIndex {
     if (/^Campaigns\//.test(file.path)) return file.path.includes("/Mechanics/") ? "homebrew" : "campaign";
     if (/^Parties\//.test(file.path)) return "party";
     if (/^Library\/Mechanics\//.test(file.path)) return "system";
+    if (frontmatter.type === "rules" && frontmatter.subtype === "house-rule") return "house-rule";
     return "note";
   }
 
-  private drop(path: string): void { if (this.records.delete(path)) { this.reindex(); void this.persist(); } }
-  private reindex(): void { this.lexical.replace([...this.records.values()].flat()); }
+  private drop(path: string, persist = true): void { const chunks = this.records.get(path); if (!chunks) return; for (const chunk of chunks) this.lexical.remove(chunk.id); this.records.delete(path); this.stamps.delete(path); if (persist) this.queuePersist(); this.changed(); }
   private allowed(scope: Scope, chunk: Chunk): boolean {
+    if (chunk.excluded || (scope.role === "player" && chunk.gmOnly)) return false;
+    const rooted = sourceKind(scope, chunk.path);
+    if (rooted) return true;
+    if (scope.role !== "gm" || chunk.type !== "rules") return false;
+    if (chunk.system === scope.system) return true;
+    if (!scope.campaignFolder || !chunk.campaignLink) return false;
     const file = this.plugin.app.vault.getAbstractFileByPath(chunk.path);
-    return file instanceof TFile && inScope(this.plugin, scope, file) !== null;
+    const target = file instanceof TFile ? this.plugin.app.metadataCache.getFirstLinkpathDest(String(chunk.campaignLink).replace(/^\[\[/, "").replace(/\]\]$/, "").split("|")[0], file.path) : null;
+    return target?.parent?.path === scope.campaignFolder;
   }
   search(query: string, scope = this.scope(), limit = 50): { chunk: Chunk; score: number }[] {
     const exact = this.lexical.findByName(query, chunk => this.allowed(scope, chunk));
@@ -79,16 +140,23 @@ export class AssistantIndex {
   private async restore(): Promise<void> {
     try {
       const raw = await this.plugin.app.vault.adapter.read(cachePath);
-      const data = JSON.parse(raw) as { version: number; records: Chunk[] };
+      const data = JSON.parse(raw) as { version: number; records: Chunk[]; stamps: Record<string, Stamp> };
       if (data.version !== version || !Array.isArray(data.records)) return;
-      for (const chunk of data.records) (this.records.get(chunk.path) ?? this.records.set(chunk.path, []).get(chunk.path) as Chunk[]).push(chunk);
-      this.reindex();
+      for (const chunk of data.records) { const entries = this.records.get(chunk.path) ?? []; entries.push(chunk); this.records.set(chunk.path, entries); }
+      for (const [path, stamp] of Object.entries(data.stamps ?? {})) this.stamps.set(path, stamp);
+      this.lexical.replace([...this.records.values()].flat());
     } catch { this.records.clear(); }
+  }
+  private queuePersist(): void {
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = setTimeout(() => { this.persistTimer = undefined; void this.persist(); }, 5000) as unknown as number;
   }
   private async persist(): Promise<void> {
     try {
       await this.plugin.app.vault.adapter.mkdir?.(".rpgvault/cache/assistant");
-      await this.plugin.app.vault.adapter.write(cachePath, JSON.stringify({ version, records: [...this.records.values()].flat() }));
+      const temporary = `${cachePath}.tmp`;
+      await this.plugin.app.vault.adapter.write(temporary, JSON.stringify({ version, records: [...this.records.values()].flat(), stamps: Object.fromEntries(this.stamps) }));
+      if (this.plugin.app.vault.adapter.rename) await this.plugin.app.vault.adapter.rename(temporary, cachePath); else await this.plugin.app.vault.adapter.write(cachePath, JSON.stringify({ version, records: [...this.records.values()].flat() }));
     } catch {}
   }
 }

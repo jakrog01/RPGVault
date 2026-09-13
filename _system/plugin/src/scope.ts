@@ -18,14 +18,14 @@ const add = (roots: { path: string; kind: SourceKind }[], path: string, kind: So
 
 export function sourceKind(scope: Scope, path: string): SourceKind | null {
   if (blocked(path) || !path.endsWith(".md")) return null;
-  const root = scope.roots.find(entry => path === entry.path || path.startsWith(`${entry.path.replace(/\.md$/, "")}/`));
+  const root = scope.roots.filter(entry => path === entry.path || path.startsWith(`${entry.path.replace(/\.md$/, "")}/`)).sort((left, right) => right.path.length - left.path.length)[0];
   return root?.kind ?? null;
 }
 
 export function resolveScope(plugin: TableTools): Scope {
   const context = plugin.currentContext();
   const roots: { path: string; kind: SourceKind }[] = [];
-  const role = context?.run.path.includes("-Player-") || String(context ? plugin.app.metadataCache.getFileCache(context.run)?.frontmatter?.role ?? "" : "").toLowerCase() === "player" ? "player" : "gm";
+  const role = String(context ? plugin.app.metadataCache.getFileCache(context.run)?.frontmatter?.role ?? "gm" : "gm").toLowerCase() === "player" ? "player" : "gm";
   const campaign = context?.campaign ?? (plugin.app.vault.getAbstractFileByPath(plugin.settings.campaignPath) as TFile | null);
   const party = context?.party ?? (plugin.app.vault.getAbstractFileByPath(plugin.settings.partyPath) as TFile | null);
   const system = String(campaign ? plugin.app.metadataCache.getFileCache(campaign)?.frontmatter?.system ?? "generic" : "generic");
@@ -46,15 +46,4 @@ export function resolveScope(plugin: TableTools): Scope {
   }
   const key = digest(JSON.stringify({ role, system, runFolder, campaignFolder, partyFolder, roots }));
   return { role, system, runFolder, campaignFolder, partyFolder, roots, key };
-}
-
-export function inScope(plugin: TableTools, scope: Scope, file: TFile): SourceKind | null {
-  const frontmatter = plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-  let kind = sourceKind(scope, file.path);
-  const campaign = plugin.currentContext()?.campaign.path ?? plugin.settings.campaignPath;
-  const linkedCampaign = String(frontmatter.campaign ?? "").replace(/^\[\[/, "").replace(/\]\]$/, "").split("|")[0].split("#")[0];
-  if (!kind && scope.role === "gm" && frontmatter.type === "rules" && (frontmatter.system === scope.system || linkedCampaign === campaign.replace(/\.md$/, ""))) kind = frontmatter["house-rule"] ? "house-rule" : "note";
-  if (!kind) return null;
-  if (frontmatter.assistant === "exclude" || (scope.role === "player" && frontmatter["gm-only"] === true)) return null;
-  return kind;
 }

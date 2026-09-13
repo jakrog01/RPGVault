@@ -29,6 +29,7 @@ export class AssistantView extends ItemView {
   private inputEl!: HTMLTextAreaElement;
   private statusEl!: HTMLElement;
   private attachmentsEl!: HTMLElement;
+  private unsubscribeIndex?: () => void;
 
   constructor(leaf: WorkspaceLeaf, readonly plugin: TableTools) { super(leaf); }
 
@@ -36,7 +37,12 @@ export class AssistantView extends ItemView {
   getDisplayText(): string { return this.plugin.strings.assistantTitle; }
   getIcon(): string { return "sparkles"; }
 
-  async onOpen(): Promise<void> { this.render(); }
+  async onOpen(): Promise<void> {
+    this.unsubscribeIndex = this.plugin.index.subscribe(() => this.renderIndexStatus());
+    this.render();
+  }
+
+  async onClose(): Promise<void> { this.unsubscribeIndex?.(); }
 
   private get strings(): Strings { return this.plugin.strings; }
 
@@ -104,8 +110,14 @@ export class AssistantView extends ItemView {
     setIcon(sendButton, "send");
     sendButton.onclick = () => void this.send(this.inputEl.value);
     this.statusEl = root.createDiv("tt-as-status");
-    this.statusEl.createSpan({ text: this.plugin.index.status() });
+    this.renderIndexStatus();
     this.renderAttachments();
+  }
+
+  private renderIndexStatus(): void {
+    if (!this.statusEl || this.busy) return;
+    this.statusEl.empty();
+    this.statusEl.createSpan({ text: this.plugin.index.status() });
   }
 
 
