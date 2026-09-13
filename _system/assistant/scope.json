@@ -1,6 +1,6 @@
 {
   "version": 1,
   "exclude": ["Archive/", "_system/", "_local/", ".obsidian/", ".rpgvault/"],
-  "gm": ["run", "campaign", "party", "system", "homebrew", "house-rule"],
-  "player": ["run", "party"]
+  "gm": ["run", "state", "campaign", "party", "system", "homebrew", "house-rule", "note"],
+  "player": ["run", "state", "party", "note"]
 }

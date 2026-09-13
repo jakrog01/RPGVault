@@ -267,8 +267,10 @@ export class AssistantView extends ItemView {
       add(`## Available skills\n${[...this.plugin.skills.values()].filter(skill => !skill.system || skill.system === scope.system).map(skill => `- ${skill.name}: ${skill.description}`).join("\n")}`);
       if (settings.contextRetrieval) {
         const hits = this.plugin.index.search(`${previousQuestion} ${question}`, scope, 50).filter(hit => !pinned.has(hit.chunk.path));
-        const rules = hits.filter(hit => ["house-rule", "homebrew", "system"].includes(hit.chunk.kind)).sort(compareRuleHits);
-        const retrieved = [...rules, ...hits.filter(hit => !["house-rule", "homebrew", "system"].includes(hit.chunk.kind))];
+        const ruleIndexes = hits.flatMap((hit, index) => ["house-rule", "homebrew", "system"].includes(hit.chunk.kind) ? [index] : []);
+        const rules = ruleIndexes.map(index => hits[index]).sort(compareRuleHits);
+        const retrieved = [...hits];
+        for (let index = 0; index < ruleIndexes.length; index++) retrieved[ruleIndexes[index]] = rules[index];
         const selected: string[] = [];
         const retrievedPaths = new Set<string>();
         for (const hit of retrieved) {

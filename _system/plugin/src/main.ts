@@ -6,7 +6,7 @@ import { createStrings, englishStrings, format, Strings } from "./strings";
 import { Combat, DEFAULTS, EncounterSet, ScopePolicy, Settings, SourceKind } from "./types";
 import { AssistantIndex } from "./indexer";
 import { Skill, loadSkills } from "./tools";
-import { assistantLayerPaths } from "./scope";
+import { assistantLayerPaths, defaultScopePolicy } from "./scope";
 
 interface PluginData { settings: Settings; combat: Combat; encounterSets: EncounterSet[] }
 export interface RunContext { run: TFile; campaign: TFile; party: TFile; state: TFile; day: TFile | null }
@@ -25,7 +25,7 @@ export default class TableTools extends Plugin {
   views = new Set<CombatView>();
   index!: AssistantIndex;
   skills = new Map<string, Skill>();
-  scopePolicy: ScopePolicy = { version: 1, gm: [...SOURCE_KINDS], player: ["run", "state", "party", "note"] };
+  scopePolicy: ScopePolicy = { ...defaultScopePolicy, exclude: [...(defaultScopePolicy.exclude ?? [])], gm: [...defaultScopePolicy.gm], player: [...defaultScopePolicy.player] };
 
   async onload(): Promise<void> {
     await this.loadStrings();
@@ -89,7 +89,7 @@ export default class TableTools extends Plugin {
         if (path.startsWith("_local") && await this.app.vault.adapter.exists(path)) new Notice(this.strings.assistantScopePolicyInvalid);
       }
     }
-    this.scopePolicy = { version: 1, gm: [...SOURCE_KINDS], player: ["run", "state", "party", "note"] };
+    this.scopePolicy = { ...defaultScopePolicy, exclude: [...(defaultScopePolicy.exclude ?? [])], gm: [...defaultScopePolicy.gm], player: [...defaultScopePolicy.player] };
   }
 
   private validKinds(value: unknown): value is SourceKind[] {

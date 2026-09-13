@@ -3,10 +3,12 @@ import type TableTools from "./main";
 import { Scope, ScopePolicy, SourceKind } from "./types";
 
 export const assistantLayerPaths = (name: string): string[] => [`_local/assistant/${name}`, `_system/assistant/${name}`];
+export const builtInExclusions = ["Archive/", ...assistantLayerPaths("scope.json").map(path => path.replace(/assistant\/.*$/, "")), ".obsidian/", ".rpgvault/"];
 export const isBuiltInExcluded = (path: string): boolean => /^(?:Archive|_system|_local|\.obsidian|\.rpgvault)(?:\/|$)/.test(path);
 const excluded = (path: string, prefixes: string[] = []): boolean => isBuiltInExcluded(path) || prefixes.some(prefix => path === prefix.replace(/\/$/, "") || path.startsWith(prefix));
-const fallback: ScopePolicy = {
+export const defaultScopePolicy: ScopePolicy = {
   version: 1,
+  exclude: [...builtInExclusions],
   gm: ["run", "state", "campaign", "party", "system", "homebrew", "house-rule", "note"],
   player: ["run", "state", "party", "note"],
 };
@@ -33,8 +35,8 @@ export function resolveScope(plugin: TableTools): Scope {
   const context = plugin.currentContext();
   const roots: { path: string; kind: SourceKind }[] = [];
   const role = String(context ? plugin.app.metadataCache.getFileCache(context.run)?.frontmatter?.role ?? "gm" : "gm").toLowerCase() === "player" ? "player" : "gm";
-  const enabled = (plugin.scopePolicy ?? fallback)[role];
-  const exclude = [...new Set((plugin.scopePolicy ?? fallback).exclude ?? [])];
+  const enabled = (plugin.scopePolicy ?? defaultScopePolicy)[role];
+  const exclude = [...new Set((plugin.scopePolicy ?? defaultScopePolicy).exclude ?? [])];
   const campaign = context?.campaign ?? (plugin.app.vault.getAbstractFileByPath(plugin.settings.campaignPath) as TFile | null);
   const party = context?.party ?? (plugin.app.vault.getAbstractFileByPath(plugin.settings.partyPath) as TFile | null);
   const system = String(campaign ? plugin.app.metadataCache.getFileCache(campaign)?.frontmatter?.system ?? "generic" : "generic");
