@@ -10,8 +10,9 @@ const exec = promisify(execFile)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 if ((await exec("git", ["rev-parse", "--is-shallow-repository"], { cwd: root })).stdout.trim() === "true") throw new Error("upgrade gate requires a complete clone")
 const tags = (await exec("git", ["tag", "--merged", "HEAD", "--sort=v:refname"], { cwd: root })).stdout.trim().split("\n").filter(Boolean)
-const latest = tags.at(-1)
-const previous = tags.filter(tag => tag !== latest)
+const head = (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim()
+const previous = []
+for (const tag of tags) if ((await exec("git", ["rev-parse", `${tag}^{}`], { cwd: root })).stdout.trim() !== head) previous.push(tag)
 if (!previous.length) console.log("no earlier release tag exists; running self-upgrade")
 for (const tag of previous.length ? previous : ["HEAD"]) {
   const source = await mkdtemp(path.join(os.tmpdir(), "rpgvault-upgrade-source-"))
