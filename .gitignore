@@ -6,4 +6,5 @@
 .trash/
 node_modules/
 .rpgvault/backups/
+.rpgvault/cache/
 .DS_Store
