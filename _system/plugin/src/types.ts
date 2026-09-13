@@ -58,7 +58,8 @@ export interface Combat {
 export interface EncounterMember { source: string; name: string; quantity: number; group: boolean }
 export interface EncounterSet { name: string; description: string; members: EncounterMember[] }
 
-export interface ChatMessage { role: "user" | "model"; text: string; time: number; parts?: unknown[] }
+export interface ToolTrace { name: string; args: Record<string, unknown>; summary: string }
+export interface ChatMessage { role: "user" | "model"; text: string; time: number; parts?: unknown[]; toolTrace?: ToolTrace[] }
 
 export type SourceKind = "run" | "state" | "campaign" | "party" | "system" | "homebrew" | "house-rule" | "note";
 
@@ -71,6 +72,8 @@ export interface Scope {
   roots: { path: string; kind: SourceKind }[];
   key: string;
 }
+
+export interface ScopePolicy { gm: SourceKind[]; player: SourceKind[] }
 
 export interface Chunk {
   id: string;
@@ -88,6 +91,9 @@ export interface Chunk {
   tags: string[];
   links: string[];
   kind: SourceKind;
+  gmOnly: boolean;
+  excluded: boolean;
+  campaignLink: string;
 }
 
 export interface Settings {

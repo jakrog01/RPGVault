@@ -49,6 +49,7 @@ export async function runScenario({ override } = {}) {
   addFile("_system/templates/campaign.md", "template")
   env.adapterFiles.set(".obsidian/plugins/initiative-tracker/data.json", JSON.stringify({ players: [{ name: "Cora", ac: 13, hp: 18, modifier: 1, level: 2 }] }))
   if (override) addFile("_local/plugins/table-tools/strings.json", JSON.stringify(override))
+  if (override) env.adapterFiles.set("_local/assistant/scope.json", "{")
 
   const TableTools = env.load()
   const plugin = new TableTools(app, { id: "table-tools" })
@@ -530,6 +531,15 @@ export async function runScenario({ override } = {}) {
   assert.equal(assistant.history.at(-1).text, "The captain is Erin.")
   byLabel(panel(), s.newConversation)[0].click()
   assert.deepEqual([assistant.history.length, assistant.attachments.length], [0, 0])
+
+  let toolRound = 0
+  plugin.settings.maxToolSteps = 1
+  env.network.fetch = async () => sseResponse([toolRound++ === 0
+    ? { candidates: [{ content: { parts: [{ functionCall: { name: "get_combat_state", args: {} } }] } }] }
+    : text(["Tool answer."])])
+  await assistant.send("Use a tool")
+  assert.ok(assistant.history.at(-1).toolTrace?.length)
+  assert.ok(byText(panel(), s.assistantToolTrace).length)
 
   for (const ribbon of plugin.ribbons) await ribbon.callback()
   return { env, plugin }

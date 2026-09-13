@@ -8,8 +8,10 @@ export interface GeminiOptions { apiKey: string; model: string; temperature: num
 export interface GeminiFunctionCall { name: string; args: Record<string, unknown>; id?: string }
 export interface GeminiTurn { text: string; parts: unknown[]; calls: GeminiFunctionCall[] }
 
+export type GeminiPart = { text?: string; functionCall?: GeminiFunctionCall; functionResponse?: unknown; thoughtSignature?: string; [key: string]: unknown };
+
 type Payload = {
-  candidates?: { content?: { parts?: { text?: string }[] } }[];
+  candidates?: { content?: { parts?: GeminiPart[] } }[];
   promptFeedback?: { blockReason?: string };
   error?: { code?: number; message?: string };
   message?: string;
@@ -30,6 +32,19 @@ function responseText(payload: Payload | null): string {
   if (!Array.isArray(parts)) return "";
   return parts.map(part => part.text ?? "").join("");
 }
+
+const appendParts = (target: GeminiPart[], incoming: GeminiPart[]): void => {
+  for (const part of incoming) {
+    const last = target[target.length - 1];
+    if (typeof part.text === "string" && Object.keys(part).every(key => key === "text") && last && typeof last.text === "string" && Object.keys(last).every(key => key === "text")) last.text += part.text;
+    else target.push({ ...part });
+  }
+};
+
+const turnFromPayload = (payload: Payload): GeminiTurn => {
+  const parts = payload.candidates?.[0]?.content?.parts?.map(part => ({ ...part })) ?? [];
+  return { text: parts.map(part => part.text ?? "").join(""), parts, calls: parts.flatMap(part => part.functionCall ? [part.functionCall] : []) };
+};
 
 export function describeError(payload: Payload | null, status: number, strings: Strings): string {
   const message = payload?.error?.message || payload?.message || "";
@@ -65,19 +80,18 @@ export async function streamTurn(
   } catch (error) {
     if ((error as { name?: string })?.name === "AbortError") throw error;
     // fetch can be blocked (CORS, mobile); fall back to a non-streaming request.
-    const text = await requestResponse(options, messages, strings, onFragment);
-    return { text, parts: text ? [{ text }] : [], calls: [] };
+    return requestTurn(options, messages, strings, onFragment);
   }
   if (!response.ok) {
     let payload: Payload | null = null;
     try { payload = await response.json() as Payload; } catch { /* no JSON body */ }
     throw new Error(describeError(payload, response.status, strings));
   }
-  if (!response.body) { const text = await requestResponse(options, messages, strings, onFragment); return { text, parts: text ? [{ text }] : [], calls: [] }; }
+  if (!response.body) return requestTurn(options, messages, strings, onFragment);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "", output = "";
-  let parts: unknown[] = [];
+  const parts: GeminiPart[] = [];
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -93,26 +107,30 @@ export async function streamTurn(
       try { payload = JSON.parse(data) as Payload; } catch { continue; }
       if (payload.error) throw new Error(describeError(payload, payload.error.code ?? 500, strings));
       const candidateParts = payload.candidates?.[0]?.content?.parts;
-      if (Array.isArray(candidateParts)) parts = candidateParts;
+      if (Array.isArray(candidateParts)) appendParts(parts, candidateParts);
       const fragment = responseText(payload);
       if (fragment) { output += fragment; onFragment(fragment); }
       const blocked = payload.promptFeedback?.blockReason;
       if (blocked) { const notice = `\n\n*${format(strings.responseBlocked, { reason: blocked })}*`; output += notice; onFragment(notice); }
     }
   }
-  const calls = (parts as { functionCall?: GeminiFunctionCall }[]).flatMap(part => part.functionCall ? [part.functionCall] : []);
+  const calls = parts.flatMap(part => part.functionCall ? [part.functionCall] : []);
   return { text: output, parts, calls };
 }
 
 export async function requestResponse(options: GeminiOptions, messages: ChatMessage[], strings: Strings, onFragment: (text: string) => void): Promise<string> {
+  return (await requestTurn(options, messages, strings, onFragment)).text;
+}
+
+export async function requestTurn(options: GeminiOptions, messages: ChatMessage[], strings: Strings, onFragment: (text: string) => void): Promise<GeminiTurn> {
   const response = await requestUrl({
     url: `${ENDPOINT}/models/${encodeURIComponent(options.model)}:generateContent?key=${encodeURIComponent(options.apiKey)}`,
     method: "POST", contentType: "application/json", body: JSON.stringify(requestBody(options, messages)), throw: false,
   });
   if (response.status >= 400) throw new Error(describeError(response.json as Payload, response.status, strings));
-  const text = responseText(response.json as Payload);
-  onFragment(text);
-  return text;
+  const turn = turnFromPayload(response.json as Payload);
+  if (turn.text) onFragment(turn.text);
+  return turn;
 }
 
 /** Models available to the key that support generateContent. */

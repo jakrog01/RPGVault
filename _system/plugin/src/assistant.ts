@@ -66,7 +66,7 @@ export class AssistantView extends ItemView {
     toggle(s.contextWorldDay, "includeWorldDay", s.contextWorldDayTitle);
     toggle(s.contextNote, "includeActiveNote", s.contextNoteTitle);
     toggle(s.contextCombat, "includeCombat", s.contextCombatTitle);
-    toggle("Search", "contextRetrieval", "Retrieve relevant notes from the active scope");
+    toggle(s.contextRetrieval, "contextRetrieval", s.contextRetrievalTitle);
     const attach = toggles.createEl("button", { cls: "tt-btn-mini", attr: { title: s.attachNoteTitle, "aria-label": s.attachNoteTitle } });
     setIcon(attach, "paperclip");
     attach.onclick = () => new NotePickerModal(this.app, s, file => this.attach(file.path)).open();
@@ -104,8 +104,10 @@ export class AssistantView extends ItemView {
     setIcon(sendButton, "send");
     sendButton.onclick = () => void this.send(this.inputEl.value);
     this.statusEl = root.createDiv("tt-as-status");
+    this.statusEl.createSpan({ text: this.plugin.index.status() });
     this.renderAttachments();
   }
+
 
   attach(path: string): void {
     if (!this.attachments.includes(path)) this.attachments.push(path);
@@ -136,6 +138,11 @@ export class AssistantView extends ItemView {
     if (message.role === "user") content.setText(message.text);
     else void MarkdownRenderer.render(this.app, message.text, content, "", this);
     if (message.role === "model") {
+      if (message.toolTrace?.length) {
+        const trace = element.createEl("details", { cls: "tt-as-tool-trace" });
+        trace.createEl("summary", { text: s.assistantToolTrace });
+        for (const entry of message.toolTrace) trace.createEl("div", { text: `${entry.name}: ${entry.summary}` });
+      }
       const actions = element.createDiv("tt-as-actions");
       const action = (icon: string, title: string, onClick: () => void): void => {
         const button = actions.createEl("button", { cls: "tt-btn-mini", attr: { title, "aria-label": title } });
@@ -261,11 +268,10 @@ export class AssistantView extends ItemView {
         messages.push({ role: "model", text: turn.text, time: Date.now(), parts: turn.parts });
         if (!turn.calls.length) break;
         const results = await Promise.all(turn.calls.map(call => tools.run(call)));
-        for (const result of results) {
-          const line = pending.createEl("details", { cls: "tt-as-tool" }); line.createEl("summary", { text: `${result.name}` }); line.createEl("pre", { text: JSON.stringify(result.result) });
-        }
+        answer.toolTrace ??= [];
+        for (let index = 0; index < results.length; index++) answer.toolTrace.push({ name: results[index].name, args: turn.calls[index].args, summary: JSON.stringify(results[index].result).slice(0, 240) });
         messages.push({ role: "user", text: "", time: Date.now(), parts: results.map(result => ({ functionResponse: { name: result.name, response: result.result, ...(result.id ? { id: result.id } : {}) } })) });
-        if (step === settings.maxToolSteps - 1) buffer += "\n\n*Tool step limit reached.*";
+        if (step === settings.maxToolSteps - 1) { buffer += `\n\n*${s.assistantToolLimit}*`; answer.text = buffer; }
       }
     } catch (error) {
       if ((error as { name?: string })?.name === "AbortError") answer.text = `${buffer}\n\n*${s.stopped}*`;
