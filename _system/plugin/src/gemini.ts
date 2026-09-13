@@ -4,7 +4,7 @@ import { ChatMessage } from "./types";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta";
 
-export interface GeminiOptions { apiKey: string; model: string; temperature: number; system: string; tools?: unknown[] }
+export interface GeminiOptions { apiKey: string; model: string; temperature: number; system: string; retrievalInstructions?: string; tools?: unknown[] }
 export interface GeminiFunctionCall { name: string; args: Record<string, unknown>; id?: string }
 export interface GeminiTurn { text: string; parts: unknown[]; calls: GeminiFunctionCall[] }
 
@@ -20,7 +20,7 @@ type Payload = {
 
 function requestBody(options: GeminiOptions, messages: ChatMessage[]) {
   return {
-    system_instruction: { parts: [{ text: options.system }] },
+    system_instruction: { parts: [{ text: options.system }, ...(options.retrievalInstructions ? [{ text: options.retrievalInstructions }] : [])] },
     contents: messages.map(message => ({ role: message.role, parts: message.parts ?? [{ text: message.text }] })),
     generationConfig: { temperature: options.temperature },
     ...(options.tools?.length ? { tools: [{ functionDeclarations: options.tools }], toolConfig: { functionCallingConfig: { mode: "AUTO" } } } : {}),

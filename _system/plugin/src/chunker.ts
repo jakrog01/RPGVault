@@ -28,20 +28,34 @@ export async function chunkFile(plugin: TableTools, file: TFile, kind: SourceKin
   const body = clean(raw.replace(/^---[\s\S]*?---\s*/, ""));
   if (!body) return [];
   const sections: { heading: string; body: string }[] = [];
-  const headings = [...body.matchAll(/^#{1,6}\s+(.+)$/gm)];
-  let start = 0;
-  let heading = "";
-  for (const match of headings) {
-    const section = body.slice(start, match.index).trim();
-    if (section) sections.push({ heading, body: section });
-    heading = match[1].trim();
-    start = (match.index ?? 0) + match[0].length;
+  const stack: string[] = [];
+  let fenced = false;
+  let current: string[] = [];
+  const flush = (): void => {
+    const section = current.join("\n").trim();
+    if (section) sections.push({ heading: stack.join(" > ") || title, body: section });
+    current = [];
+  };
+  for (const line of body.split("\n")) {
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced;
+      current.push(line);
+      continue;
+    }
+    const match = fenced ? null : line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+    if (!match) {
+      current.push(line);
+      continue;
+    }
+    flush();
+    const level = match[1].length;
+    stack.splice(level - 1);
+    stack[level - 1] = match[2].trim();
   }
-  const tail = body.slice(start).trim();
-  if (tail) sections.push({ heading, body: tail });
-  if (!sections.length) sections.push({ heading: "", body });
+  flush();
+  if (!sections.length) sections.push({ heading: title, body });
   const whole = /```statblock[\s\S]*?```/i.test(body) || (type === "creature" && tokens(body) <= 2000);
-  const pieces: { heading: string; body: string }[] = whole ? [{ heading: "", body }] : [];
+  const pieces: { heading: string; body: string }[] = whole ? [{ heading: title, body }] : [];
   if (!whole) for (const section of sections) {
     if (tokens(section.body) <= 600) {
       const previous = pieces[pieces.length - 1];

@@ -453,6 +453,8 @@ export async function runScenario({ override } = {}) {
     "## Combat state", "Eve (player)", `## Note: ${docks.path}`, "The docks smell of tar.", `## Active note: ${ariaFile.path}`, "Aria keeps watch.", "GM question: What now?"]) assert.ok(question.includes(fragment), fragment)
   assert.equal(question.includes("date: 1"), false, "world-day frontmatter is stripped")
   assert.equal(sent.system_instruction.parts[0].text, plugin.settings.systemPrompt)
+  env.record(sent.system_instruction.parts[1].text)
+  assert.equal(sent.system_instruction.parts[1].text, s.assistantRetrievalInstructions)
   assert.equal(sent.generationConfig.temperature, 0.3)
   assert.equal(assistant.history[1].text, "Hello there.")
   assert.ok(byClass(panel(), "tt-as-model").some(element => element.textContent.includes("Hello there.")))
@@ -538,11 +540,13 @@ export async function runScenario({ override } = {}) {
   let toolRound = 0
   plugin.settings.maxToolSteps = 1
   env.network.fetch = async () => sseResponse([toolRound++ === 0
-    ? { candidates: [{ content: { parts: [{ functionCall: { name: "get_combat_state", args: {} } }] } }] }
+    ? { candidates: [{ content: { parts: [{ functionCall: { name: "search_vault", args: { query: "docks" } } }] } }] }
     : text(["Tool answer."])])
   await assistant.send("Use a tool")
   assert.ok(assistant.history.at(-1).toolTrace?.length)
   assert.ok(byText(panel(), s.assistantToolTrace).length)
+  assert.ok(assistant.history.at(-1).sources?.includes(docks.path))
+  assert.ok(byClass(panel(), "tt-as-source").some(element => element.attributes["data-path"] === docks.path))
 
   for (const ribbon of plugin.ribbons) await ribbon.callback()
   return { env, plugin }

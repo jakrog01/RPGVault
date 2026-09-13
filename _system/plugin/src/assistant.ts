@@ -31,6 +31,7 @@ export class AssistantView extends ItemView {
   private statusEl!: HTMLElement;
   private attachmentsEl!: HTMLElement;
   private unsubscribeIndex?: () => void;
+  private contextSources: string[] = [];
 
   constructor(leaf: WorkspaceLeaf, readonly plugin: TableTools) { super(leaf); }
 
@@ -151,6 +152,17 @@ export class AssistantView extends ItemView {
     if (message.role === "user") content.setText(message.text);
     else void MarkdownRenderer.render(this.app, message.text, content, "", this);
     if (message.role === "model") {
+      if (message.sources?.length) {
+        const sources = element.createEl("details", { cls: "tt-as-sources" });
+        sources.createEl("summary", { text: s.assistantSources });
+        for (const path of message.sources) {
+          const source = sources.createEl("button", { cls: "tt-as-source", text: path, attr: { "data-path": path } });
+          source.onclick = event => {
+            event.preventDefault();
+            void this.app.workspace.openLinkText(path, "");
+          };
+        }
+      }
       if (message.toolTrace?.length) {
         const trace = element.createEl("details", { cls: "tt-as-tool-trace" });
         trace.createEl("summary", { text: s.assistantToolTrace });
@@ -184,6 +196,24 @@ export class AssistantView extends ItemView {
   async buildContext(question = "", previousQuestion = ""): Promise<string> {
     const settings: Settings = this.plugin.settings;
     const parts: string[] = [];
+    const pinned = new Set<string>();
+    const sources = new Set<string>();
+    let used = 0;
+    const add = (section: string): void => {
+      const remaining = settings.contextBudgetTokens - used;
+      if (remaining <= 0 || !section) return;
+      const addition = `${parts.length ? "\n\n" : ""}${section}`;
+      if (Math.ceil(addition.length / 4) <= remaining) {
+        parts.push(section);
+        used += Math.ceil(addition.length / 4);
+        return;
+      }
+      const clipped = addition.slice(0, Math.max(0, remaining * 4 - 1)).trimEnd();
+      if (clipped) {
+        parts.push(`${clipped}\n[more context omitted]`);
+        used = settings.contextBudgetTokens;
+      }
+    };
     const read = async (path: string): Promise<string> => {
       if (!path) return "";
       const file = this.app.vault.getAbstractFileByPath(path);
@@ -200,46 +230,63 @@ export class AssistantView extends ItemView {
       const campaign = await read(settings.campaignPath || run?.campaign.path || "");
       const runNote = run ? await read(run.run.path) : "";
       const state = run ? await read(run.state.path) : "";
-      if (campaign || runNote || state) parts.push(`## Run context\n${cap(campaign, 750, run?.campaign.path ?? "")}\n\n${cap(runNote, 375, run?.run.path ?? "")}\n\n${cap(state, 375, run?.state.path ?? "")}`);
+      if (campaign) pinned.add(settings.campaignPath || run?.campaign.path || "");
+      if (runNote) pinned.add(run?.run.path ?? "");
+      if (state) pinned.add(run?.state.path ?? "");
+      if (campaign || runNote || state) add(`## Run context\n${cap(campaign, 750, run?.campaign.path ?? "")}\n\n${cap(runNote, 375, run?.run.path ?? "")}\n\n${cap(state, 375, run?.state.path ?? "")}`);
     }
     if (settings.includeWorldDay) {
       const day = await read(settings.worldDayPath || run?.day?.path || "");
-      if (day) parts.push(`## World day\n${cap(day.replace(/^---[\s\S]*?---\s*/, ""), 500, run?.day?.path ?? "")}`);
+      if (day) {
+        pinned.add(settings.worldDayPath || run?.day?.path || "");
+        add(`## World day\n${cap(day.replace(/^---[\s\S]*?---\s*/, ""), 500, run?.day?.path ?? "")}`);
+      }
     }
     if (settings.includeCombat) {
       const combat = this.plugin.tracker.summary();
-      if (combat) parts.push(`## Combat state\n${combat}`);
+      if (combat) add(`## Combat state\n${combat}`);
     }
     for (const path of this.attachments) {
       const text = await read(path);
-      if (text) parts.push(`## Note: ${path}\n${cap(text, 1500, path)}`);
+      if (text) {
+        pinned.add(path);
+        add(`## Note: ${path}\n${cap(text, 1500, path)}`);
+      }
     }
     if (settings.includeActiveNote) {
       const file = this.app.workspace.getActiveFile();
-      if (file && file.extension === "md" && !this.attachments.includes(file.path)) parts.push(`## Active note: ${file.path}\n${cap(await this.app.vault.cachedRead(file), 1500, file.path)}`);
+      if (file && file.extension === "md") {
+        pinned.add(file.path);
+        if (!this.attachments.includes(file.path)) add(`## Active note: ${file.path}\n${cap(await this.app.vault.cachedRead(file), 1500, file.path)}`);
+      }
     }
     if (question && this.plugin.index) {
       const scope = this.plugin.index.scope();
       const party = this.app.vault.getMarkdownFiles().filter(file => file.path.startsWith(`${scope.partyFolder}/`)).map(file => file.basename).slice(0, 12).join(", ");
-      parts.push(`## Scope\nRun: ${run?.run.basename ?? "none"} | role: ${scope.role} | campaign: ${run?.campaign.basename ?? "none"} | system: ${scope.system} | party: ${party}`);
-      parts.push(`## Available skills\n${[...this.plugin.skills.values()].filter(skill => !skill.system || skill.system === scope.system).map(skill => `- ${skill.name}: ${skill.description}`).join("\n")}`);
+      add(`## Scope\nRun: ${run?.run.basename ?? "none"} | role: ${scope.role} | campaign: ${run?.campaign.basename ?? "none"} | system: ${scope.system} | party: ${party}`);
+      add(`## Available skills\n${[...this.plugin.skills.values()].filter(skill => !skill.system || skill.system === scope.system).map(skill => `- ${skill.name}: ${skill.description}`).join("\n")}`);
       if (settings.contextRetrieval) {
-        const pinned = new Set(this.attachments);
-        if (settings.includeActiveNote) { const active = this.app.workspace.getActiveFile(); if (active) pinned.add(active.path); }
         const hits = this.plugin.index.search(`${previousQuestion} ${question}`, scope, 50).filter(hit => !pinned.has(hit.chunk.path));
         const rules = hits.filter(hit => ["house-rule", "homebrew", "system"].includes(hit.chunk.kind)).sort(compareRuleHits);
         const retrieved = [...rules, ...hits.filter(hit => !["house-rule", "homebrew", "system"].includes(hit.chunk.kind))];
-        const selected: string[] = []; let used = Math.ceil(parts.join("\n").length / 4);
+        const selected: string[] = [];
+        const retrievedPaths = new Set<string>();
         for (const hit of retrieved) {
+          if (retrievedPaths.has(hit.chunk.path)) continue;
           const item = `[[${hit.chunk.path}#${hit.chunk.breadcrumb}]]\n${hit.chunk.text}`;
-          if (selected.length >= 8 || used + Math.ceil(item.length / 4) > settings.contextBudgetTokens) break;
-          selected.push(item); used += Math.ceil(item.length / 4);
+          const header = selected.length ? "\n\n" : `${parts.length ? "\n\n" : ""}## Retrieved\nRule precedence: house rule > campaign homebrew > system library.\n\n`;
+          if (selected.length >= 8 || used + Math.ceil(`${header}${item}`.length / 4) > settings.contextBudgetTokens) continue;
+          selected.push(item);
+          retrievedPaths.add(hit.chunk.path);
+          sources.add(hit.chunk.path);
+          used += Math.ceil(`${header}${item}`.length / 4);
         }
         if (selected.length) parts.push(`## Retrieved\nRule precedence: house rule > campaign homebrew > system library.\n\n${selected.join("\n\n")}`);
       }
     }
     let context = parts.join("\n\n");
     if (context.length > settings.maxContext) context = context.slice(0, settings.maxContext) + "\n\n[context truncated]";
+    this.contextSources = [...sources];
     return context;
   }
 
@@ -256,7 +303,7 @@ export class AssistantView extends ItemView {
     this.history.push(question);
     this.listEl.querySelector(".tt-as-welcome")?.remove();
     this.renderMessage(question);
-    const answer: ChatMessage = { role: "model", text: "", time: Date.now() };
+    const answer: ChatMessage = { role: "model", text: "", time: Date.now(), sources: [...this.contextSources] };
     const pending = this.listEl.createDiv("tt-as-message tt-as-model tt-as-writing");
     const content = pending.createDiv("tt-as-content");
     content.setText("\u2026");
@@ -276,7 +323,7 @@ export class AssistantView extends ItemView {
       const system = settings.systemPrompt;
       const tools = new VaultTools(this.plugin, this.plugin.index, () => this.plugin.skills);
       for (let step = 0; step < settings.maxToolSteps; step++) {
-        const turn = await streamTurn({ apiKey: settings.apiKey, model: settings.model, temperature: settings.temperature, system, tools: declarations }, messages, s, fragment => {
+        const turn = await streamTurn({ apiKey: settings.apiKey, model: settings.model, temperature: settings.temperature, system, retrievalInstructions: settings.contextRetrieval ? s.assistantRetrievalInstructions : undefined, tools: declarations }, messages, s, fragment => {
           buffer += fragment; answer.text = buffer;
           const now = Date.now(); if (now - lastRender > 120) { lastRender = now; content.empty(); void MarkdownRenderer.render(this.app, buffer, content, "", this); this.listEl.scrollTop = this.listEl.scrollHeight; }
         }, controller.signal);
@@ -284,7 +331,14 @@ export class AssistantView extends ItemView {
         if (!turn.calls.length) break;
         const results = await Promise.all(turn.calls.map(call => tools.run(call)));
         answer.toolTrace ??= [];
-        for (let index = 0; index < results.length; index++) answer.toolTrace.push({ name: results[index].name, args: turn.calls[index].args, summary: JSON.stringify(results[index].result).slice(0, 240) });
+        for (let index = 0; index < results.length; index++) {
+          answer.toolTrace.push({ name: results[index].name, args: turn.calls[index].args, summary: JSON.stringify(results[index].result).slice(0, 240) });
+          for (const match of JSON.stringify(results[index].result).matchAll(/\[\[([^\]#|]+)/g)) {
+            if (!answer.sources?.includes(match[1])) answer.sources?.push(match[1]);
+          }
+          const path = results[index].result.path;
+          if (typeof path === "string" && !answer.sources?.includes(path)) answer.sources?.push(path);
+        }
         messages.push({ role: "user", text: "", time: Date.now(), parts: results.map(result => ({ functionResponse: { name: result.name, response: result.result, ...(result.id ? { id: result.id } : {}) } })) });
         if (step === settings.maxToolSteps - 1) { buffer += `\n\n*${s.assistantToolLimit}*`; answer.text = buffer; }
       }

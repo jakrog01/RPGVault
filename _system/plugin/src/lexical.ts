@@ -16,7 +16,7 @@ export class LexicalIndex {
     this.remove(chunk.id);
     const frequency = new Map<string, number>();
     const fields = [
-      [chunk.title, 3], [chunk.aliases.join(" "), 3], [chunk.breadcrumb, 2], [chunk.text, 1],
+      [chunk.title, 3], [chunk.aliases.join(" "), 3], [chunk.breadcrumb, 2], [chunk.indexedText, .15], [chunk.text, 1],
     ] as const;
     for (const [value, boost] of fields) for (const term of terms(value)) frequency.set(term, (frequency.get(term) ?? 0) + boost);
     this.chunks.set(chunk.id, chunk); this.docs.set(chunk.id, frequency); this.length.set(chunk.id, [...frequency.values()].reduce((total, value) => total + value, 0));

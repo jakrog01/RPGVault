@@ -6,7 +6,9 @@ The shipped policy is `_system/assistant/scope.json`. A local policy at `_local/
 
 Rules use hard campaign boundaries. House rules take precedence over campaign homebrew, which takes precedence over the active system library. Rules tied to a campaign link are visible only to that campaign; rules without a campaign link must match the active system.
 
-Pinned run, day, combat, attached, and active-note material is sent first. Relevant chunks are then added within the context budget and cited as wikilinks. Large pinned notes provide an outline and a link to indexed material.
+Pinned campaign, run, state, world day, combat, attached notes, and the active note are sent first and are never repeated in retrieval. The scope card and available skills follow. Relevant chunks are then added in score order within the total retrieval budget (estimated as one token per four characters) and cited as wikilinks. Large pinned notes provide an outline and a link to indexed material. The default character limit does not cut this budgeted context.
+
+Every final answer has a Sources disclosure listing the retrieved notes and notes returned by tools. Select a source to open that note in Obsidian. Breadcrumb citations include the full heading path; headings inside fenced code blocks are not headings.
 
 The model can search and read scoped notes, find names, list notes, look up rules, inspect run or combat state, roll dice, and load a skill. These tools are read-only. House rules take precedence over campaign homebrew, which takes precedence over the system library.
 

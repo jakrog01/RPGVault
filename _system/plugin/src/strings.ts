@@ -244,6 +244,8 @@ export const englishStrings = {
   commandRebuildAssistantIndex: "Assistant: rebuild index",
   assistantToolLimit: "Tool step limit reached.",
   assistantToolTrace: "Tools used",
+  assistantSources: "Sources",
+  assistantRetrievalInstructions: "Use supplied wikilink citations when you rely on retrieved context. Say when the context lacks the answer or use a tool. Never reveal secret notes in read-aloud text.",
   assistantIndexing: "Indexing {count}...",
   assistantIndexed: "Indexed {notes} notes and {chunks} chunks.",
   assistantScopePolicyInvalid: "Assistant scope policy is invalid; the shipped policy is in use.",
