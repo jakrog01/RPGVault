@@ -23,6 +23,7 @@ export class AssistantView extends ItemView {
     for (const [label, key] of [[this.plugin.strings.campaignContext, "includeCampaign"], [this.plugin.strings.dayContext, "includeWorldDay"], [this.plugin.strings.noteContext, "includeActiveNote"], [this.plugin.strings.combatContext, "includeCombat"]] as const) { const field = controls.createEl("label", { text: label }); const input = field.createEl("input", { type: "checkbox" }); input.checked = this.plugin.settings[key]; input.onchange = () => { this.plugin.settings[key] = input.checked; void this.plugin.save(); }; }
     const attach = controls.createEl("button", { text: this.plugin.strings.attachNote }); attach.onclick = () => new NotePicker(this.app, file => { if (!this.attachments.includes(file.path)) this.attachments.push(file.path); }).open();
     const reset = controls.createEl("button", { text: this.plugin.strings.newConversation }); reset.onclick = () => { this.messages = []; this.attachments = []; this.render(); };
+    const stop = controls.createEl("button", { text: this.plugin.strings.stop }); stop.onclick = () => this.controller?.abort();
     this.list = root.createDiv("tt-as-list");
     if (!this.messages.length) this.list.createEl("p", { text: this.plugin.settings.apiKey ? this.plugin.strings.ready : this.plugin.strings.addKey });
     for (const message of this.messages) this.renderMessage(message);
