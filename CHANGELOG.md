@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added scoped assistant retrieval, read-only vault tools, and loadable skills.
+
 ## 1.0.0
 
 First release of the upgradeable tabletop RPG vault template.

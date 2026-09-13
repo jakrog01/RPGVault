@@ -3,5 +3,5 @@
   "private": true,
   "version": "1.0.0",
   "engines": { "node": ">=20" },
-  "scripts": { "test": "node tests/language.mjs && node tests/history-language.mjs && node tests/contract.mjs && node tests/adopt.mjs && node tests/upgrade.mjs && node tests/migration-immutability.mjs && node tests/plugin-smoke.mjs && node tests/plugin-contract.mjs && node tests/plugin-behaviour.mjs", "doctor": "node _system/bin/rpgvault.mjs doctor" }
+  "scripts": { "test": "node tests/language.mjs && node tests/history-language.mjs && node tests/contract.mjs && node tests/adopt.mjs && node tests/upgrade.mjs && node tests/migration-immutability.mjs && node tests/plugin-smoke.mjs && node tests/plugin-contract.mjs && node tests/plugin-behaviour.mjs && node tests/assistant-index.mjs", "doctor": "node _system/bin/rpgvault.mjs doctor" }
 }
