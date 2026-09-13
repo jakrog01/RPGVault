@@ -1,0 +1,7 @@
+filters:
+  and:
+    - file.frontmatter.type == "rules"
+    - file.frontmatter.subtype == "house-rule"
+views:
+  - type: table
+    name: House Rules

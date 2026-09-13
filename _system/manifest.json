@@ -1,0 +1,32 @@
+{
+  "contentRoots": ["Campaigns", "Parties", "Runs", "Library", "Calendar", "Archive"],
+  "ownedGlobs": ["_system/**", ".obsidian/**", ".rpgvault/state.json", "Home.md", "README.md", "CHANGELOG.md", "docs/**", ".github/**"],
+  "contractualNames": ["Active.md", "Campaign.md", "Party.md", "Run.md", "State.md", "Dashboard.md", "Radar.md", "World Day.md"],
+  "runtimeReadOnlyAllowlist": [],
+  "asciiAllowlist": ["_system/obsidian/plugins/calendarium/main.js"],
+  "referenceFolders": ["Library/Mechanics/*/Spells", "Library/Mechanics/*/Bestiary", "Library/Mechanics/*/Items"],
+  "neverTouch": [".obsidian/workspace.json", ".obsidian/workspace-mobile.json", ".obsidian/plugins/table-tools/data.json", ".obsidian/plugins/calendarium/data.json"],
+  "managedObsidian": [
+    {"path":"app.json", "keys":["alwaysUpdateLinks", "attachmentFolderPath"]},
+    {"path":"community-plugins.json", "keys":null},
+    {"path":"plugins/templater-obsidian/data.json", "keys":["templates_folder", "user_scripts_folder", "folder_templates", "file_templates"]},
+    {"path":"plugins/templater-obsidian/manifest.json", "keys":["id", "name", "version", "minAppVersion", "description", "author", "isDesktopOnly"]},
+    {"path":"plugins/templater-obsidian/main.js", "keys":null},
+    {"path":"plugins/calendarium/manifest.json", "keys":["id", "name", "version", "minAppVersion", "description", "author", "isDesktopOnly"]},
+    {"path":"plugins/calendarium/main.js", "keys":null},
+    {"path":"plugins/calendarium/styles.css", "keys":null},
+    {"path":"plugins/table-tools/manifest.json", "keys":["id", "name", "version", "minAppVersion", "description", "author", "isDesktopOnly"]},
+    {"path":"plugins/table-tools/main.js", "keys":[]}
+  ],
+  "folders": [
+    {"path":"Campaigns","noTemplate":true}, {"path":"Parties","noTemplate":true}, {"path":"Runs","noTemplate":true},
+    {"path":"Library/Mechanics","noTemplate":true}, {"path":"Library/Assets","noTemplate":true},
+    {"path":"Calendar","noTemplate":true}, {"path":"Archive","noTemplate":true}, {"path":"_local/templates","noTemplate":true}, {"path":"_local/scripts","noTemplate":true}
+  ],
+  "templateRules": [
+    {"pattern":"Campaigns/.+","template":"campaign.md"}, {"pattern":"Parties/.+","template":"party.md"},
+    {"pattern":"Runs/.+","template":"run.md"}, {"pattern":"Library/Mechanics/.+/Spells/.+","template":"spell.md"},
+    {"pattern":"Library/Mechanics/.+/Bestiary/.+","template":"creature.md"}, {"pattern":"Library/Mechanics/.+/Items/.+","template":"item.md"}
+  ],
+  "defaults": {"system":"generic", "calendar":"Calendar"}
+}

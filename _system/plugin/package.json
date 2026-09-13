@@ -1,0 +1,21 @@
+{
+  "name": "table-tools",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^26.5.0",
+    "esbuild": "^0.24.2",
+    "js-yaml": "^5.4.1",
+    "jsdom": "^30.0.1",
+    "obsidian": "^1.13.1",
+    "typescript": "^5.7.3"
+  }
+}

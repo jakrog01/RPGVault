@@ -1,0 +1,6 @@
+filters:
+  and:
+    - file.frontmatter.type == "campaign"
+views:
+  - type: table
+    name: Campaigns

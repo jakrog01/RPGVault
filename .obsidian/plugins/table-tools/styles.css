@@ -1,0 +1,10 @@
+.tt-combat, .tt-assistant { display: flex; flex-direction: column; gap: 0.5rem; height: 100%; padding: 0.75rem; }
+.tt-combat-controls, .tt-as-controls, .tt-as-quick { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.tt-combat button, .tt-assistant button { cursor: pointer; }
+.tt-table { width: 100%; border-collapse: collapse; }
+.tt-table td, .tt-table th { padding: 0.4rem; border-bottom: 1px solid var(--background-modifier-border); text-align: left; }
+.tt-defeated { opacity: 0.55; }
+.tt-as-list { flex: 1; overflow: auto; }
+.tt-message { padding: 0.5rem; margin: 0.25rem 0; border-radius: 0.4rem; background: var(--background-secondary); }
+.tt-user { border-left: 3px solid var(--interactive-accent); }
+.tt-die { cursor: pointer; color: var(--text-accent); }

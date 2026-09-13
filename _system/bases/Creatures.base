@@ -1,0 +1,6 @@
+filters:
+  and:
+    - file.frontmatter.type == "creature"
+views:
+  - type: table
+    name: Creatures

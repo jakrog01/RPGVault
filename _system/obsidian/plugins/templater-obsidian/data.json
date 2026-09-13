@@ -1,0 +1,27 @@
+{
+  "data_version": 2,
+  "command_timeout": 5,
+  "templates_folder": "_system/templates",
+  "templates_pairs": [],
+  "trigger_on_file_creation_mode": "regex",
+  "auto_jump_to_cursor": true,
+  "jump_to_cursor_after_file_name": false,
+  "shell_path": "",
+  "user_scripts_folder": "_system/scripts",
+  "folder_templates": [
+    {"folder":"Campaigns", "template":"_system/templates/campaign.md"},
+    {"folder":"Parties", "template":"_system/templates/party.md"},
+    {"folder":"Runs", "template":"_system/templates/run.md"}
+  ],
+  "file_templates": [
+    {"regex":"^Library/Mechanics/[^/]+/Spells/", "template":"_system/templates/spell.md"},
+    {"regex":"^Library/Mechanics/[^/]+/Bestiary/", "template":"_system/templates/creature.md"},
+    {"regex":"^Library/Mechanics/[^/]+/Items/", "template":"_system/templates/item.md"}
+  ],
+  "syntax_highlighting": true,
+  "syntax_highlighting_mobile": false,
+  "enabled_templates_hotkeys": [],
+  "startup_templates": [],
+  "intellisense_render": "1",
+  "ignore_folders_on_creation": []
+}

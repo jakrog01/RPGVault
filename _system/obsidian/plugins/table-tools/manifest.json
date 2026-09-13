@@ -1,0 +1,9 @@
+{
+  "id": "table-tools",
+  "name": "RPGVault Table Tools",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "Campaign-aware combat context for RPGVault",
+  "author": "RPGVault",
+  "isDesktopOnly": false
+}

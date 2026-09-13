@@ -1,0 +1,6 @@
+filters:
+  and:
+    - file.frontmatter.type == "item"
+views:
+  - type: table
+    name: Items

@@ -1,0 +1,6 @@
+{
+  "id": "coc7e",
+  "name": "Call of Cthulhu 7e",
+  "noteTypes": ["campaign", "party", "run", "spell", "creature", "item", "rules"],
+  "requiredFrontmatter": {"campaign":["system"], "run":["role", "campaign"], "spell":["system"], "creature":["system"]}
+}

@@ -1,0 +1,6 @@
+filters:
+  and:
+    - file.frontmatter.type == "spell"
+views:
+  - type: table
+    name: Spells

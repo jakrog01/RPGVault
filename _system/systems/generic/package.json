@@ -1,0 +1,6 @@
+{
+  "id": "generic",
+  "name": "Generic",
+  "noteTypes": ["campaign", "party", "run", "spell", "creature", "item", "rules"],
+  "requiredFrontmatter": {"campaign":["system"], "run":["role", "campaign"], "spell":["system"], "creature":["system"]}
+}

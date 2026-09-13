@@ -1,0 +1,7 @@
+{
+  "name": "rpgvault",
+  "private": true,
+  "version": "1.0.0",
+  "engines": { "node": ">=20" },
+  "scripts": { "test": "node tests/language.mjs && node tests/history-language.mjs && node tests/contract.mjs && node tests/adopt.mjs", "doctor": "node _system/bin/rpgvault.mjs doctor" }
+}

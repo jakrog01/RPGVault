@@ -1,0 +1,6 @@
+filters:
+  and:
+    - file.frontmatter.type == "run"
+views:
+  - type: table
+    name: Runs

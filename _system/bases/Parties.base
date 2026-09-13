@@ -1,0 +1,6 @@
+filters:
+  and:
+    - file.frontmatter.type == "party"
+views:
+  - type: table
+    name: Parties

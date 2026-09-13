@@ -1,0 +1,9 @@
+{
+  "id": "calendarium",
+  "name": "Calendarium",
+  "version": "2.1.0",
+  "minAppVersion": "1.5.7",
+  "description": "Craft mind-bending fantasy and sci-fi calendars.",
+  "author": "Jeremy Valentine",
+  "isDesktopOnly": false
+}

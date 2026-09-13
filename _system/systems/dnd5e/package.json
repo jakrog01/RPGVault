@@ -1,0 +1,6 @@
+{
+  "id": "dnd5e",
+  "name": "Dungeons & Dragons 5e",
+  "noteTypes": ["campaign", "party", "run", "spell", "creature", "item", "rules"],
+  "requiredFrontmatter": {"campaign":["system"], "run":["role", "campaign"], "spell":["system"], "creature":["system"]}
+}
