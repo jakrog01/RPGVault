@@ -554,6 +554,11 @@ export async function runScenario({ override } = {}) {
   assert.ok(assistant.history.at(-1).sources?.includes(docks.path))
   assert.ok(byClass(panel(), "tt-as-source").some(element => element.attributes["data-path"] === docks.path))
 
+  const invalidSkill = addFile("_local/assistant/skills/invalid.md", ["---", "name: invalid", "---", "Missing description."].join("\n"), { name: "invalid" })
+  env.emit("changed", invalidSkill)
+  await until(() => notices.some(notice => notice.includes(invalidSkill.path)), "invalid assistant skill")
+  assert.ok(notices.some(notice => notice.includes(fill(s.assistantSkillInvalid, { paths: invalidSkill.path }))))
+
   for (const ribbon of plugin.ribbons) await ribbon.callback()
   return { env, plugin }
 }

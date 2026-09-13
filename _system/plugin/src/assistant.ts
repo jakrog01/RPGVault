@@ -9,14 +9,14 @@ import { compareRuleHits } from "./indexer";
 export const ASSISTANT_VIEW = "tt-assistant";
 
 /** Quick prompts. A prompt ending with a blank line is placed in the input for the GM to complete. */
-const QUICK_PROMPTS: { label: StringKey; prompt: StringKey; icon: string }[] = [
-  { label: "quickSceneLabel", prompt: "quickScenePrompt", icon: "eye" },
-  { label: "quickNpcLabel", prompt: "quickNpcPrompt", icon: "user" },
-  { label: "quickPasserbyLabel", prompt: "quickPasserbyPrompt", icon: "footprints" },
-  { label: "quickConsequencesLabel", prompt: "quickConsequencesPrompt", icon: "git-branch" },
-  { label: "quickSummaryLabel", prompt: "quickSummaryPrompt", icon: "scroll" },
+const QUICK_PROMPTS: { label: StringKey; prompt: StringKey; icon: string; skill?: string }[] = [
+  { label: "quickSceneLabel", prompt: "quickScenePrompt", icon: "eye", skill: "scene-description" },
+  { label: "quickNpcLabel", prompt: "quickNpcPrompt", icon: "user", skill: "npc-improvisation" },
+  { label: "quickPasserbyLabel", prompt: "quickPasserbyPrompt", icon: "footprints", skill: "passer-by" },
+  { label: "quickConsequencesLabel", prompt: "quickConsequencesPrompt", icon: "git-branch", skill: "consequences" },
+  { label: "quickSummaryLabel", prompt: "quickSummaryPrompt", icon: "scroll", skill: "session-summary" },
   { label: "quickNamesLabel", prompt: "quickNamesPrompt", icon: "tag" },
-  { label: "quickMechanicsLabel", prompt: "quickMechanicsPrompt", icon: "dices" },
+  { label: "quickMechanicsLabel", prompt: "quickMechanicsPrompt", icon: "dices", skill: "rules-adjudication" },
 ];
 
 type ContextToggle = "includeCampaign" | "includeWorldDay" | "includeActiveNote" | "includeCombat" | "contextRetrieval";
@@ -32,6 +32,7 @@ export class AssistantView extends ItemView {
   private attachmentsEl!: HTMLElement;
   private unsubscribeIndex?: () => void;
   private contextSources: string[] = [];
+  private pendingSkillHint?: string;
 
   constructor(leaf: WorkspaceLeaf, readonly plugin: TableTools) { super(leaf); }
 
@@ -98,8 +99,8 @@ export class AssistantView extends ItemView {
       setIcon(button.createSpan(), entry.icon);
       button.createSpan({ text: s[entry.label] });
       button.onclick = () => {
-        if (prompt.endsWith("\n\n")) { this.inputEl.value = prompt; this.inputEl.focus(); }
-        else void this.send(prompt);
+        if (prompt.endsWith("\n\n")) { this.pendingSkillHint = entry.skill; this.inputEl.value = prompt; this.inputEl.focus(); }
+        else void this.send(prompt, entry.skill);
       };
     }
 
@@ -193,7 +194,7 @@ export class AssistantView extends ItemView {
     return element;
   }
 
-  async buildContext(question = "", previousQuestion = ""): Promise<string> {
+  async buildContext(question = "", previousQuestion = "", skillHint = ""): Promise<string> {
     const settings: Settings = this.plugin.settings;
     const parts: string[] = [];
     const pinned = new Set<string>();
@@ -265,6 +266,8 @@ export class AssistantView extends ItemView {
       const party = this.app.vault.getMarkdownFiles().filter(file => file.path.startsWith(`${scope.partyFolder}/`)).map(file => file.basename).slice(0, 12).join(", ");
       add(`## Scope\nRun: ${run?.run.basename ?? "none"} | role: ${scope.role} | campaign: ${run?.campaign.basename ?? "none"} | system: ${scope.system} | party: ${party}`);
       add(`## Available skills\n${[...this.plugin.skills.values()].filter(skill => !skill.system || skill.system === scope.system).map(skill => `- ${skill.name}: ${skill.description}`).join("\n")}`);
+      const skill = this.plugin.skills.get(skillHint);
+      if (skill && (!skill.system || skill.system === scope.system)) add(`## Requested skill: ${skill.name}\n${skill.body}`);
       if (settings.contextRetrieval) {
         const hits = this.plugin.index.search(`${previousQuestion} ${question}`, scope, 50).filter(hit => !pinned.has(hit.chunk.path));
         const ruleIndexes = hits.flatMap((hit, index) => ["house-rule", "homebrew", "system"].includes(hit.chunk.kind) ? [index] : []);
@@ -292,15 +295,16 @@ export class AssistantView extends ItemView {
     return context;
   }
 
-  async send(raw: string): Promise<void> {
+  async send(raw: string, skillHint = this.pendingSkillHint ?? ""): Promise<void> {
     const s = this.strings;
     const text = raw.trim();
     if (!text || this.busy) return;
     const settings = this.plugin.settings;
     if (!settings.apiKey) { new Notice(s.noApiKey); return; }
+    this.pendingSkillHint = undefined;
     this.inputEl.value = "";
     const previous = [...this.history].reverse().find(message => message.role === "user")?.text ?? "";
-    const context = await this.buildContext(text, previous);
+    const context = await this.buildContext(text, previous, skillHint);
     const question: ChatMessage = { role: "user", text, time: Date.now() };
     this.history.push(question);
     this.listEl.querySelector(".tt-as-welcome")?.remove();

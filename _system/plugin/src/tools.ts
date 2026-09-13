@@ -1,9 +1,10 @@
-import { TFile } from "obsidian";
+import { Notice, TFile } from "obsidian";
 import type TableTools from "./main";
 import { roll } from "./dice";
 import { AssistantIndex } from "./indexer";
 import { assistantLayerPaths } from "./scope";
 import { compareRuleHits } from "./indexer";
+import { format } from "./strings";
 
 export interface Skill { name: string; description: string; body: string; system?: string; tools: string[]; path: string }
 export interface ToolCall { name: string; args: Record<string, unknown>; id?: string }
@@ -66,15 +67,23 @@ export class VaultTools {
 
 export async function loadSkills(plugin: TableTools): Promise<Map<string, Skill>> {
   const paths = [...assistantLayerPaths("skills")].reverse();
-  const scope = plugin.index?.scope(); if (scope?.campaignFolder) paths.push(`${scope.campaignFolder}/Assistant/skills`);
+  const scope = plugin.index?.scope();
+  if (scope?.campaignFolder) paths.push(`${scope.campaignFolder}/Assistant/skills`);
   const result = new Map<string, Skill>();
-  for (const file of plugin.app.vault.getMarkdownFiles()) {
-    if (!paths.some(path => file.path.startsWith(`${path}/`))) continue;
-    const raw = await plugin.app.vault.cachedRead(file); const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
-    if (!match) continue;
-    const fields = Object.fromEntries(match[1].split("\n").map(line => line.split(/:\s*/, 2)).filter(([key, value]) => key && value));
-    if (!fields.name || !fields.description) continue;
-    result.set(fields.name, { name: fields.name, description: fields.description, body: match[2].trim(), system: fields.system, tools: (fields.tools ?? "").replace(/[\[\]]/g, "").split(",").map((value: string) => value.trim()).filter(Boolean), path: file.path });
+  const invalid: string[] = [];
+  for (const path of paths) for (const file of plugin.app.vault.getMarkdownFiles().filter(candidate => candidate.path.startsWith(`${path}/`))) {
+    const fields = plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+    const name = typeof fields.name === "string" ? fields.name : "";
+    const description = typeof fields.description === "string" ? fields.description : "";
+    if (!name || !description) {
+      invalid.push(file.path);
+      continue;
+    }
+    const raw = await plugin.app.vault.cachedRead(file);
+    const body = raw.replace(/^---\s*\n[\s\S]*?\n---\s*(?:\n|$)/, "").trim();
+    const tools = Array.isArray(fields.tools) ? fields.tools.map(String) : typeof fields.tools === "string" ? fields.tools.replace(/[\[\]]/g, "").split(",").map(value => value.trim()).filter(Boolean) : [];
+    result.set(name, { name, description, body, system: typeof fields.system === "string" ? fields.system : undefined, tools, path: file.path });
   }
+  if (invalid.length) new Notice(format(plugin.strings.assistantSkillInvalid, { paths: invalid.join(", ") }));
   return result;
 }

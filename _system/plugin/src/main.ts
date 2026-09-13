@@ -36,8 +36,15 @@ export default class TableTools extends Plugin {
     const vaultEvents = this.app.vault as typeof this.app.vault & { on: (event: string, callback: (file: TFile) => void) => unknown };
     for (const event of ["create", "modify", "delete"]) this.registerEvent(vaultEvents.on(event, file => {
       if (file instanceof TFile && SCOPE_PATHS.includes(file.path)) void this.loadScopePolicy();
+      if (file instanceof TFile && this.isSkillPath(file.path)) void this.reloadSkills();
     }) as never);
     this.skills = await loadSkills(this);
+    this.registerEvent(this.app.metadataCache.on("changed", file => {
+      if (file instanceof TFile && this.isSkillPath(file.path)) void this.reloadSkills();
+    }));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+      if (file instanceof TFile && (this.isSkillPath(file.path) || this.isSkillPath(oldPath))) void this.reloadSkills();
+    }));
     const s = this.strings;
     this.registerView(COMBAT_VIEW, leaf => new CombatView(leaf, this));
     this.registerView(ASSISTANT_VIEW, leaf => new AssistantView(leaf, this));
@@ -95,6 +102,15 @@ export default class TableTools extends Plugin {
   private validKinds(value: unknown): value is SourceKind[] {
     return Array.isArray(value) && value.every(kind => SOURCE_KINDS.includes(kind as SourceKind));
   }
+
+  private isSkillPath(path: string): boolean {
+    if (assistantLayerPaths("skills").some(folder => path.startsWith(`${folder}/`))) return true;
+    const scope = this.index?.scope();
+    if (scope?.campaignFolder && path.startsWith(`${scope.campaignFolder}/Assistant/skills/`)) return true;
+    return path === this.settings.activePointerPath || path === this.currentContext()?.run.path;
+  }
+
+  private async reloadSkills(): Promise<void> { this.skills = await loadSkills(this); }
 
 
   async loadSettings(): Promise<void> {
