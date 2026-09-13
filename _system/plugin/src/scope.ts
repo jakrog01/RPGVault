@@ -3,8 +3,8 @@ import type TableTools from "./main";
 import { Scope, ScopePolicy, SourceKind } from "./types";
 
 export const assistantLayerPaths = (name: string): string[] => [`_local/assistant/${name}`, `_system/assistant/${name}`];
-const builtInExcluded = (path: string): boolean => /^(?:Archive|_system|_local|\.obsidian|\.rpgvault)(?:\/|$)/.test(path);
-const excluded = (path: string, prefixes: string[] = []): boolean => builtInExcluded(path) || prefixes.some(prefix => path === prefix.replace(/\/$/, "") || path.startsWith(prefix));
+export const isBuiltInExcluded = (path: string): boolean => /^(?:Archive|_system|_local|\.obsidian|\.rpgvault)(?:\/|$)/.test(path);
+const excluded = (path: string, prefixes: string[] = []): boolean => isBuiltInExcluded(path) || prefixes.some(prefix => path === prefix.replace(/\/$/, "") || path.startsWith(prefix));
 const fallback: ScopePolicy = {
   version: 1,
   gm: ["run", "state", "campaign", "party", "system", "homebrew", "house-rule", "note"],

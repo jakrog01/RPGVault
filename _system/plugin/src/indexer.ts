@@ -2,7 +2,7 @@ import { TFile } from "obsidian";
 import type TableTools from "./main";
 import { chunkFile } from "./chunker";
 import { LexicalIndex } from "./lexical";
-import { resolveScope, sourceKind } from "./scope";
+import { isBuiltInExcluded, resolveScope, sourceKind } from "./scope";
 import { Chunk, Scope } from "./types";
 import { format } from "./strings";
 
@@ -144,7 +144,7 @@ export class AssistantIndex {
 
   private drop(path: string, persist = true): void { const chunks = this.records.get(path); if (!chunks) return; for (const chunk of chunks) this.lexical.remove(chunk.id); this.records.delete(path); this.stamps.delete(path); if (persist) this.queuePersist(); this.changed(); }
   private allowed(scope: Scope, chunk: Chunk): boolean {
-    if (chunk.excluded || scope.exclude.some(prefix => chunk.path === prefix.replace(/\/$/, "") || chunk.path.startsWith(prefix)) || !scope.kinds.includes(chunk.kind) || (scope.role === "player" && chunk.gmOnly)) return false;
+    if (chunk.excluded || isBuiltInExcluded(chunk.path) || scope.exclude.some(prefix => chunk.path === prefix.replace(/\/$/, "") || chunk.path.startsWith(prefix)) || !scope.kinds.includes(chunk.kind) || (scope.role === "player" && chunk.gmOnly)) return false;
     const rooted = sourceKind(scope, chunk.path);
     if (rooted) return true;
     if (!scope.runFolder || scope.role !== "gm" || chunk.type !== "rules") return false;
