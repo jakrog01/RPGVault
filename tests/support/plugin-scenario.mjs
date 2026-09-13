@@ -540,11 +540,17 @@ export async function runScenario({ override } = {}) {
   let toolRound = 0
   plugin.settings.maxToolSteps = 1
   env.network.fetch = async () => sseResponse([toolRound++ === 0
-    ? { candidates: [{ content: { parts: [{ functionCall: { name: "search_vault", args: { query: "docks" } } }] } }] }
+    ? { candidates: [{ content: { parts: [{ functionCall: { name: "get_combat_state", args: {} } }] } }] }
     : text(["Tool answer."])])
   await assistant.send("Use a tool")
   assert.ok(assistant.history.at(-1).toolTrace?.length)
   assert.ok(byText(panel(), s.assistantToolTrace).length)
+
+  toolRound = 0
+  env.network.fetch = async () => sseResponse([toolRound++ === 0
+    ? { candidates: [{ content: { parts: [{ functionCall: { name: "search_vault", args: { query: "docks" } } }] } }] }
+    : text(["Source answer."])])
+  await assistant.send("Find the docks")
   assert.ok(assistant.history.at(-1).sources?.includes(docks.path))
   assert.ok(byClass(panel(), "tt-as-source").some(element => element.attributes["data-path"] === docks.path))
 
