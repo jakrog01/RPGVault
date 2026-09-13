@@ -58,7 +58,37 @@ export interface Combat {
 export interface EncounterMember { source: string; name: string; quantity: number; group: boolean }
 export interface EncounterSet { name: string; description: string; members: EncounterMember[] }
 
-export interface ChatMessage { role: "user" | "model"; text: string; time: number }
+export interface ChatMessage { role: "user" | "model"; text: string; time: number; parts?: unknown[] }
+
+export type SourceKind = "run" | "state" | "campaign" | "party" | "system" | "homebrew" | "house-rule" | "note";
+
+export interface Scope {
+  role: "gm" | "player";
+  system: string;
+  runFolder: string;
+  campaignFolder: string;
+  partyFolder: string;
+  roots: { path: string; kind: SourceKind }[];
+  key: string;
+}
+
+export interface Chunk {
+  id: string;
+  path: string;
+  breadcrumb: string;
+  ordinal: number;
+  text: string;
+  indexedText: string;
+  hash: string;
+  title: string;
+  aliases: string[];
+  type: string;
+  system: string;
+  status: string;
+  tags: string[];
+  links: string[];
+  kind: SourceKind;
+}
 
 export interface Settings {
   apiKey: string;
@@ -66,6 +96,9 @@ export interface Settings {
   temperature: number;
   systemPrompt: string;
   maxContext: number;
+  contextBudgetTokens: number;
+  contextRetrieval: boolean;
+  maxToolSteps: number;
   activePointerPath: string;
   campaignPath: string;
   worldDayPath: string;
@@ -97,6 +130,9 @@ Rules:
 - Give mechanics in the format of the campaign's system (for D&D 5e: DC, d20, advantage or disadvantage). Do not invent rules that are not in the context; if you do not know, say so.
 - Never reveal secrets in text marked as read-aloud.`,
   maxContext: 24000,
+  contextBudgetTokens: 6000,
+  contextRetrieval: true,
+  maxToolSteps: 5,
   activePointerPath: "Active.md",
   campaignPath: "",
   worldDayPath: "",

@@ -1,8 +1,9 @@
 import { App, FuzzySuggestModal, ItemView, MarkdownRenderer, MarkdownView, Notice, TFile, WorkspaceLeaf, setIcon } from "obsidian";
 import type TableTools from "./main";
-import { streamResponse } from "./gemini";
+import { streamTurn } from "./gemini";
 import { StringKey, Strings } from "./strings";
 import { ChatMessage, Settings } from "./types";
+import { declarations, VaultTools } from "./tools";
 
 export const ASSISTANT_VIEW = "tt-assistant";
 
@@ -17,7 +18,7 @@ const QUICK_PROMPTS: { label: StringKey; prompt: StringKey; icon: string }[] = [
   { label: "quickMechanicsLabel", prompt: "quickMechanicsPrompt", icon: "dices" },
 ];
 
-type ContextToggle = "includeCampaign" | "includeWorldDay" | "includeActiveNote" | "includeCombat";
+type ContextToggle = "includeCampaign" | "includeWorldDay" | "includeActiveNote" | "includeCombat" | "contextRetrieval";
 
 export class AssistantView extends ItemView {
   history: ChatMessage[] = [];
@@ -65,6 +66,7 @@ export class AssistantView extends ItemView {
     toggle(s.contextWorldDay, "includeWorldDay", s.contextWorldDayTitle);
     toggle(s.contextNote, "includeActiveNote", s.contextNoteTitle);
     toggle(s.contextCombat, "includeCombat", s.contextCombatTitle);
+    toggle("Search", "contextRetrieval", "Retrieve relevant notes from the active scope");
     const attach = toggles.createEl("button", { cls: "tt-btn-mini", attr: { title: s.attachNoteTitle, "aria-label": s.attachNoteTitle } });
     setIcon(attach, "paperclip");
     attach.onclick = () => new NotePickerModal(this.app, s, file => this.attach(file.path)).open();
@@ -159,7 +161,7 @@ export class AssistantView extends ItemView {
     return element;
   }
 
-  async buildContext(): Promise<string> {
+  async buildContext(question = "", previousQuestion = ""): Promise<string> {
     const settings: Settings = this.plugin.settings;
     const parts: string[] = [];
     const read = async (path: string): Promise<string> => {
@@ -168,15 +170,21 @@ export class AssistantView extends ItemView {
       return file instanceof TFile ? this.app.vault.cachedRead(file) : "";
     };
     const run = this.plugin.currentContext();
+    const cap = (text: string, limit: number, path: string): string => {
+      if (Math.ceil(text.length / 4) <= limit) return text;
+      const body = text.replace(/^---[\s\S]*?---\s*/, "");
+      const outline = [...body.matchAll(/^#{1,6}\s+(.+)$/gm)].map(match => `# ${match[1]}`).join("\n");
+      return `${text.match(/^---[\s\S]*?---\s*/)?.[0] ?? ""}${outline}\n\n${body.slice(0, limit * 4)}\n\n[more in the index: ${path}]`;
+    };
     if (settings.includeCampaign) {
       const campaign = await read(settings.campaignPath || run?.campaign.path || "");
       const runNote = run ? await read(run.run.path) : "";
       const state = run ? await read(run.state.path) : "";
-      if (campaign || runNote || state) parts.push(`## Run context\n${campaign}\n\n${runNote}\n\n${state}`);
+      if (campaign || runNote || state) parts.push(`## Run context\n${cap(campaign, 750, run?.campaign.path ?? "")}\n\n${cap(runNote, 375, run?.run.path ?? "")}\n\n${cap(state, 375, run?.state.path ?? "")}`);
     }
     if (settings.includeWorldDay) {
       const day = await read(settings.worldDayPath || run?.day?.path || "");
-      if (day) parts.push(`## World day\n${day.replace(/^---[\s\S]*?---\s*/, "")}`);
+      if (day) parts.push(`## World day\n${cap(day.replace(/^---[\s\S]*?---\s*/, ""), 500, run?.day?.path ?? "")}`);
     }
     if (settings.includeCombat) {
       const combat = this.plugin.tracker.summary();
@@ -184,11 +192,29 @@ export class AssistantView extends ItemView {
     }
     for (const path of this.attachments) {
       const text = await read(path);
-      if (text) parts.push(`## Note: ${path}\n${text}`);
+      if (text) parts.push(`## Note: ${path}\n${cap(text, 1500, path)}`);
     }
     if (settings.includeActiveNote) {
       const file = this.app.workspace.getActiveFile();
-      if (file && file.extension === "md" && !this.attachments.includes(file.path)) parts.push(`## Active note: ${file.path}\n${await this.app.vault.cachedRead(file)}`);
+      if (file && file.extension === "md" && !this.attachments.includes(file.path)) parts.push(`## Active note: ${file.path}\n${cap(await this.app.vault.cachedRead(file), 1500, file.path)}`);
+    }
+    if (question && this.plugin.index) {
+      const scope = this.plugin.index.scope();
+      const party = this.app.vault.getMarkdownFiles().filter(file => file.path.startsWith(`${scope.partyFolder}/`)).map(file => file.basename).slice(0, 12).join(", ");
+      parts.push(`## Scope\nRun: ${run?.run.basename ?? "none"} | role: ${scope.role} | campaign: ${run?.campaign.basename ?? "none"} | system: ${scope.system} | party: ${party}`);
+      parts.push(`## Available skills\n${[...this.plugin.skills.values()].filter(skill => !skill.system || skill.system === scope.system).map(skill => `- ${skill.name}: ${skill.description}`).join("\n")}`);
+      if (settings.contextRetrieval) {
+        const pinned = new Set(this.attachments);
+        if (settings.includeActiveNote) { const active = this.app.workspace.getActiveFile(); if (active) pinned.add(active.path); }
+        const retrieved = this.plugin.index.search(`${previousQuestion} ${question}`, scope, 50).filter(hit => !pinned.has(hit.chunk.path));
+        const selected: string[] = []; let used = Math.ceil(parts.join("\n").length / 4);
+        for (const hit of retrieved) {
+          const item = `[[${hit.chunk.path}#${hit.chunk.breadcrumb}]]\n${hit.chunk.text}`;
+          if (selected.length >= 8 || used + Math.ceil(item.length / 4) > settings.contextBudgetTokens) break;
+          selected.push(item); used += Math.ceil(item.length / 4);
+        }
+        if (selected.length) parts.push(`## Retrieved\nRule precedence: house rule > campaign homebrew > system library.\n\n${selected.join("\n\n")}`);
+      }
     }
     let context = parts.join("\n\n");
     if (context.length > settings.maxContext) context = context.slice(0, settings.maxContext) + "\n\n[context truncated]";
@@ -202,7 +228,8 @@ export class AssistantView extends ItemView {
     const settings = this.plugin.settings;
     if (!settings.apiKey) { new Notice(s.noApiKey); return; }
     this.inputEl.value = "";
-    const context = await this.buildContext();
+    const previous = [...this.history].reverse().find(message => message.role === "user")?.text ?? "";
+    const context = await this.buildContext(text, previous);
     const question: ChatMessage = { role: "user", text, time: Date.now() };
     this.history.push(question);
     this.listEl.querySelector(".tt-as-welcome")?.remove();
@@ -224,17 +251,22 @@ export class AssistantView extends ItemView {
     messages.push({ role: "user", text: context ? `<context>\n${context}\n</context>\n\nGM question: ${text}` : text, time: question.time });
     let buffer = "", lastRender = 0;
     try {
-      await streamResponse({ apiKey: settings.apiKey, model: settings.model, temperature: settings.temperature, system: settings.systemPrompt }, messages, s, fragment => {
-        buffer += fragment;
-        answer.text = buffer;
-        const now = Date.now();
-        if (now - lastRender > 120) {
-          lastRender = now;
-          content.empty();
-          void MarkdownRenderer.render(this.app, buffer, content, "", this);
-          this.listEl.scrollTop = this.listEl.scrollHeight;
+      const system = settings.systemPrompt;
+      const tools = new VaultTools(this.plugin, this.plugin.index, () => this.plugin.skills);
+      for (let step = 0; step < settings.maxToolSteps; step++) {
+        const turn = await streamTurn({ apiKey: settings.apiKey, model: settings.model, temperature: settings.temperature, system, tools: declarations }, messages, s, fragment => {
+          buffer += fragment; answer.text = buffer;
+          const now = Date.now(); if (now - lastRender > 120) { lastRender = now; content.empty(); void MarkdownRenderer.render(this.app, buffer, content, "", this); this.listEl.scrollTop = this.listEl.scrollHeight; }
+        }, controller.signal);
+        messages.push({ role: "model", text: turn.text, time: Date.now(), parts: turn.parts });
+        if (!turn.calls.length) break;
+        const results = await Promise.all(turn.calls.map(call => tools.run(call)));
+        for (const result of results) {
+          const line = pending.createEl("details", { cls: "tt-as-tool" }); line.createEl("summary", { text: `${result.name}` }); line.createEl("pre", { text: JSON.stringify(result.result) });
         }
-      }, controller.signal);
+        messages.push({ role: "user", text: "", time: Date.now(), parts: results.map(result => ({ functionResponse: { name: result.name, response: result.result, ...(result.id ? { id: result.id } : {}) } })) });
+        if (step === settings.maxToolSteps - 1) buffer += "\n\n*Tool step limit reached.*";
+      }
     } catch (error) {
       if ((error as { name?: string })?.name === "AbortError") answer.text = `${buffer}\n\n*${s.stopped}*`;
       else answer.text = `${buffer}\n\n> [!warning] ${error instanceof Error ? error.message : String(error)}`;
@@ -258,4 +290,3 @@ class NotePickerModal extends FuzzySuggestModal<TFile> {
   getItemText(file: TFile): string { return file.path; }
   onChooseItem(file: TFile): void { this.onPick(file); }
 }
-
