@@ -3,7 +3,7 @@
   "name": "RPGVault Table Tools",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "Campaign-aware combat context for RPGVault",
+  "description": "Combat tracker, dice, statblock cards, and a Gemini assistant for RPGVault",
   "author": "RPGVault",
   "isDesktopOnly": false
 }
