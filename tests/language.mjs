@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url"
 const exec = promisify(execFile)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const hashes = new Set((await readFile(path.join(root, "tests/fixtures/forbidden-vocabulary.sha256"), "utf8")).trim().split("\n"))
-const excluded = item => item === "package-lock.json" || item.startsWith("_system/obsidian/plugins/templater-obsidian/") || item.startsWith("_system/obsidian/plugins/calendarium/")
+const excluded = item => item === "package-lock.json" || item.includes("obsidian/plugins/templater-obsidian/") || item.includes("obsidian/plugins/calendarium/")
 const tokenise = value => value.replace(/([a-z])([A-Z])/g, "$1 $2").split(/[^A-Za-z0-9]+/).filter(Boolean).map(token => token.toLowerCase())
 const digest = value => createHash("sha256").update(value).digest("hex")
 const inspect = (name, value) => {

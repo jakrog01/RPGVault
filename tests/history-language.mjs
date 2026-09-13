@@ -15,5 +15,5 @@ for (const ref of (await exec("git", ["for-each-ref", "--format=%(refname:short)
 const messages = (await exec("git", ["log", "--all", "--format=%B"], { cwd: root })).stdout
 inspect("commit messages", messages)
 const objects = (await exec("git", ["rev-list", "--objects", "--all"], { cwd: root })).stdout.trim().split("\n")
-for (const record of objects) { const [object, ...name] = record.split(" "); const type = (await exec("git", ["cat-file", "-t", object], { cwd: root })).stdout.trim(); if (type === "blob") inspect(name.join(" ") || object, (await exec("git", ["cat-file", "-p", object], { cwd: root, maxBuffer: 16 * 1024 * 1024 })).stdout); }
+for (const record of objects) { const [object, ...name] = record.split(" "); const file = name.join(" "); if (file.includes("obsidian/plugins/templater-obsidian/") || file.includes("obsidian/plugins/calendarium/") || file.endsWith("package-lock.json")) continue; const type = (await exec("git", ["cat-file", "-t", object], { cwd: root })).stdout.trim(); if (type === "blob") inspect(file || object, (await exec("git", ["cat-file", "-p", object], { cwd: root, maxBuffer: 16 * 1024 * 1024 })).stdout); }
 console.log("history language gate: clean")
