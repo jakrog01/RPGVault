@@ -4,7 +4,9 @@ import { ChatMessage } from "./types";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta";
 
-export interface GeminiOptions { apiKey: string; model: string; temperature: number; system: string }
+export interface GeminiOptions { apiKey: string; model: string; temperature: number; system: string; tools?: unknown[] }
+export interface GeminiFunctionCall { name: string; args: Record<string, unknown>; id?: string }
+export interface GeminiTurn { text: string; parts: unknown[]; calls: GeminiFunctionCall[] }
 
 type Payload = {
   candidates?: { content?: { parts?: { text?: string }[] } }[];
@@ -17,8 +19,9 @@ type Payload = {
 function requestBody(options: GeminiOptions, messages: ChatMessage[]) {
   return {
     system_instruction: { parts: [{ text: options.system }] },
-    contents: messages.map(message => ({ role: message.role, parts: [{ text: message.text }] })),
+    contents: messages.map(message => ({ role: message.role, parts: message.parts ?? [{ text: message.text }] })),
     generationConfig: { temperature: options.temperature },
+    ...(options.tools?.length ? { tools: [{ functionDeclarations: options.tools }], toolConfig: { functionCallingConfig: { mode: "AUTO" } } } : {}),
   };
 }
 
@@ -45,6 +48,16 @@ export async function streamResponse(
   onFragment: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<string> {
+  return (await streamTurn(options, messages, strings, onFragment, signal)).text;
+}
+
+export async function streamTurn(
+  options: GeminiOptions,
+  messages: ChatMessage[],
+  strings: Strings,
+  onFragment: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<GeminiTurn> {
   const url = `${ENDPOINT}/models/${encodeURIComponent(options.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(options.apiKey)}`;
   let response: Response;
   try {
@@ -52,17 +65,19 @@ export async function streamResponse(
   } catch (error) {
     if ((error as { name?: string })?.name === "AbortError") throw error;
     // fetch can be blocked (CORS, mobile); fall back to a non-streaming request.
-    return requestResponse(options, messages, strings, onFragment);
+    const text = await requestResponse(options, messages, strings, onFragment);
+    return { text, parts: text ? [{ text }] : [], calls: [] };
   }
   if (!response.ok) {
     let payload: Payload | null = null;
     try { payload = await response.json() as Payload; } catch { /* no JSON body */ }
     throw new Error(describeError(payload, response.status, strings));
   }
-  if (!response.body) return requestResponse(options, messages, strings, onFragment);
+  if (!response.body) { const text = await requestResponse(options, messages, strings, onFragment); return { text, parts: text ? [{ text }] : [], calls: [] }; }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "", output = "";
+  let parts: unknown[] = [];
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -77,13 +92,16 @@ export async function streamResponse(
       let payload: Payload;
       try { payload = JSON.parse(data) as Payload; } catch { continue; }
       if (payload.error) throw new Error(describeError(payload, payload.error.code ?? 500, strings));
+      const candidateParts = payload.candidates?.[0]?.content?.parts;
+      if (Array.isArray(candidateParts)) parts = candidateParts;
       const fragment = responseText(payload);
       if (fragment) { output += fragment; onFragment(fragment); }
       const blocked = payload.promptFeedback?.blockReason;
       if (blocked) { const notice = `\n\n*${format(strings.responseBlocked, { reason: blocked })}*`; output += notice; onFragment(notice); }
     }
   }
-  return output;
+  const calls = (parts as { functionCall?: GeminiFunctionCall }[]).flatMap(part => part.functionCall ? [part.functionCall] : []);
+  return { text: output, parts, calls };
 }
 
 export async function requestResponse(options: GeminiOptions, messages: ChatMessage[], strings: Strings, onFragment: (text: string) => void): Promise<string> {

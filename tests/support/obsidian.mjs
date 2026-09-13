@@ -152,6 +152,7 @@ export function createEnvironment() {
     async loadData() { return storage.data ? JSON.parse(JSON.stringify(storage.data)) : null }
     async saveData(data) { storage.data = JSON.parse(JSON.stringify(data)) }
     registerView(type, factory) { this.viewFactories.set(type, factory) }
+    registerEvent() {}
     addRibbonIcon(icon, title, callback) { record(title); this.ribbons.push({ icon, title, callback }) }
     addCommand(command) { record(command.name); this.commands.push(command) }
     addSettingTab(tab) { this.settingTabs.push(tab) }
@@ -161,6 +162,9 @@ export function createEnvironment() {
   const files = new Map()
   const addFile = (filePath, content = "", frontmatter = null) => { files.set(filePath, { file: new TFile(filePath), content, frontmatter }); return files.get(filePath).file }
   const adapterFiles = new Map()
+  const listeners = new Map()
+  const on = (event, callback) => { const entries = listeners.get(event) ?? []; entries.push(callback); listeners.set(event, entries); return { event, callback } }
+  const emit = (event, ...args) => { for (const callback of listeners.get(event) ?? []) callback(...args) }
   const appended = []
   const opened = []
   const leaves = []
@@ -185,7 +189,8 @@ export function createEnvironment() {
       getAbstractFileByPath: filePath => files.get(filePath)?.file ?? null,
       cachedRead: async file => files.get(file.path)?.content ?? "",
       append: async (file, text) => { files.get(file.path).content += text; appended.push(text); record(text) },
-      adapter: { read: async filePath => { if (!adapterFiles.has(filePath)) throw new Error("missing"); return adapterFiles.get(filePath) } },
+      adapter: { read: async filePath => { if (!adapterFiles.has(filePath)) throw new Error("missing"); return adapterFiles.get(filePath) }, write: async (filePath, value) => adapterFiles.set(filePath, value), mkdir: async () => {} },
+      on,
     },
     metadataCache: {
       getFileCache: file => ({ frontmatter: files.get(file.path)?.frontmatter ?? undefined }),
@@ -193,6 +198,7 @@ export function createEnvironment() {
         const clean = String(link).replace(/\.md$/, "")
         return files.get(`${clean}.md`)?.file ?? [...files.values()].find(entry => entry.file.basename === clean)?.file ?? null
       },
+      on,
     },
     workspace,
     setting: { open() { this.opened = true } },
@@ -226,7 +232,7 @@ export function createEnvironment() {
   Object.defineProperty(globalThis, "navigator", { value: { clipboard: { writeText: async text => { clipboard.push(text); record(text) } } }, configurable: true })
 
   return {
-    app, workspace, files, addFile, adapterFiles, appended, opened, leaves, modals, notices, rendered, requests, network, clipboard, storage,
+    app, workspace, files, addFile, adapterFiles, appended, opened, leaves, modals, notices, rendered, requests, network, clipboard, storage, emit,
     MockElement, TFile, MarkdownView, load, byLabel, byClass, byText, settingByName, buttonComponent, record,
   }
 }

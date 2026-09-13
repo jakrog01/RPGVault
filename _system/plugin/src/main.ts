@@ -4,6 +4,8 @@ import { CombatTracker, CombatView, COMBAT_VIEW, newCombat } from "./combat";
 import { listModels } from "./gemini";
 import { createStrings, englishStrings, format, Strings } from "./strings";
 import { Combat, DEFAULTS, EncounterSet, Settings } from "./types";
+import { AssistantIndex } from "./indexer";
+import { Skill, loadSkills } from "./tools";
 
 interface PluginData { settings: Settings; combat: Combat; encounterSets: EncounterSet[] }
 export interface RunContext { run: TFile; campaign: TFile; party: TFile; state: TFile; day: TFile | null }
@@ -18,10 +20,15 @@ export default class TableTools extends Plugin {
   tracker = new CombatTracker(this);
   /** Open combat views, re-rendered after every combat change. */
   views = new Set<CombatView>();
+  index!: AssistantIndex;
+  skills = new Map<string, Skill>();
 
   async onload(): Promise<void> {
     await this.loadStrings();
     await this.loadSettings();
+    this.index = new AssistantIndex(this);
+    await this.index.start();
+    this.skills = await loadSkills(this);
     const s = this.strings;
     this.registerView(COMBAT_VIEW, leaf => new CombatView(leaf, this));
     this.registerView(ASSISTANT_VIEW, leaf => new AssistantView(leaf, this));
@@ -31,6 +38,7 @@ export default class TableTools extends Plugin {
 
     this.addCommand({ id: "open-combat", name: s.commandOpenCombat, callback: () => void this.openView(COMBAT_VIEW) });
     this.addCommand({ id: "open-assistant", name: s.commandOpenAssistant, callback: () => void this.openView(ASSISTANT_VIEW) });
+    this.addCommand({ id: "assistant-rebuild-index", name: "Assistant: rebuild index", callback: () => void this.index.rebuild() });
     this.addCommand({ id: "combat-next-turn", name: s.commandNextTurn, callback: () => this.tracker.advance(1) });
     this.addCommand({ id: "combat-previous-turn", name: s.commandPreviousTurn, callback: () => this.tracker.advance(-1) });
     this.addCommand({ id: "combat-roll-initiative", name: s.commandRollInitiative, callback: () => this.tracker.rollInitiative(false) });
@@ -46,6 +54,8 @@ export default class TableTools extends Plugin {
 
     this.addSettingTab(new TableToolsSettingTab(this.app, this));
   }
+
+  onunload(): void { this.index?.dispose(); }
 
   async loadStrings(): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(STRINGS_OVERRIDE);
