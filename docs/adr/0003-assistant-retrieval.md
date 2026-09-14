@@ -1,3 +1,3 @@
 # ADR 0003: assistant retrieval
 
-The assistant filters scope before ranking to preserve campaign and player boundaries. It uses a local lexical index first and stores its cache in `.rpgvault/cache/assistant/`. Optional future vectors may use brute-force comparison because vaults are small enough. The assistant has no write tools.
+The assistant filters scope before ranking to preserve campaign and player boundaries. It uses a local lexical index first and stores its cache in `.rpgvault/cache/assistant/`. Optional Ollama and Gemini vectors are normalised, persisted separately, and combined with the lexical top 50 using reciprocal-rank fusion. Brute-force cosine comparison is the deliberate implementation for vault-sized indexes: it is transparent and avoids a native dependency. Providers sit behind the embedding boundary so an in-plugin model can be added later without changing indexing or retrieval. The assistant has no write tools.

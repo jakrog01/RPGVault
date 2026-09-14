@@ -1,12 +1,14 @@
-import { TFile } from "obsidian";
+import { Notice, TFile } from "obsidian";
 import type TableTools from "./main";
 import { chunkFile } from "./chunker";
 import { LexicalIndex } from "./lexical";
 import { isBuiltInExcluded, resolveScope, sourceKind } from "./scope";
 import { Chunk, Scope } from "./types";
 import { format } from "./strings";
+import { cosine, EmbeddingProvider, GeminiEmbeddingProvider, NoneEmbeddingProvider, OllamaEmbeddingProvider } from "./embeddings";
 
 const cachePath = ".rpgvault/cache/assistant/manifest.json";
+const vectorsPath = ".rpgvault/cache/assistant/vectors.bin";
 const version = 4;
 
 export type ScoredChunk = { chunk: Chunk; score: number };
@@ -29,6 +31,13 @@ export class AssistantIndex {
   private listeners = new Set<() => void>();
   private notifyTimer?: number;
   private restored: Promise<void>;
+  private provider: EmbeddingProvider = new NoneEmbeddingProvider();
+  private providerKey = "none";
+  private vectors = new Map<string, { hash: string; values: Float32Array }>();
+  private embeddingRunning = false;
+  private embeddingPaused = false;
+  private embeddingWaiters: (() => void)[] = [];
+  private embeddingNoticeShown = false;
 
   constructor(private readonly plugin: TableTools) { this.restored = this.restore(); }
 
@@ -81,7 +90,62 @@ export class AssistantIndex {
   }
   status(): string {
     const { notes, chunks, pending } = this.stats();
+    if (this.embeddingRunning) return format(this.plugin.strings.assistantEmbedding, { count: this.embeddingPending() });
     return pending ? format(this.plugin.strings.assistantIndexing, { count: pending }) : format(this.plugin.strings.assistantIndexed, { notes, chunks });
+  }
+
+  async applyEmbeddingSettings(): Promise<void> {
+    const settings = this.plugin.settings;
+    const key = settings.embeddingProvider === "ollama" ? `ollama:${settings.ollamaUrl}:${settings.ollamaModel}` : settings.embeddingProvider === "gemini" ? `gemini:${settings.geminiEmbeddingModel}:${settings.embeddingDimensions}` : "none";
+    const changed = key !== this.providerKey;
+    if (changed) {
+      this.providerKey = key;
+      this.vectors.clear();
+      this.embeddingPaused = false;
+      this.embeddingNoticeShown = false;
+      this.queuePersist();
+    }
+    this.provider = settings.embeddingProvider === "ollama"
+      ? new OllamaEmbeddingProvider(settings.ollamaUrl, settings.ollamaModel)
+      : settings.embeddingProvider === "gemini"
+        ? new GeminiEmbeddingProvider(settings.apiKey, settings.embeddingDimensions, settings.geminiEmbeddingModel)
+        : new NoneEmbeddingProvider();
+    void this.embedPending();
+  }
+
+  whenEmbedded(): Promise<void> {
+    return this.embeddingRunning ? new Promise(resolve => this.embeddingWaiters.push(resolve)) : Promise.resolve();
+  }
+
+  async testEmbedding(): Promise<number> {
+    if (this.provider.id === "none") return 0;
+    return (await this.provider.embedQuery("embedding test")).length;
+  }
+
+  private embeddingPending(): number { return this.provider.id === "none" ? 0 : [...this.records.values()].flat().filter(chunk => this.vectors.get(chunk.id)?.hash !== chunk.hash).length; }
+
+  private async embedPending(): Promise<void> {
+    if (this.embeddingRunning || this.embeddingPaused || this.provider.id === "none") return;
+    this.embeddingRunning = true;
+    this.changed();
+    try {
+      await this.whenIdle();
+      const pending = [...this.records.values()].flat().filter(chunk => this.vectors.get(chunk.id)?.hash !== chunk.hash);
+      for (let index = 0; index < pending.length; index += 32) {
+        const batch = pending.slice(index, index + 32);
+        const values = await this.provider.embedDocuments(batch.map(chunk => `${chunk.title}\u0000${chunk.text}`));
+        for (let item = 0; item < batch.length; item++) this.vectors.set(batch[item].id, { hash: batch[item].hash, values: values[item] });
+        this.changed();
+      }
+      this.queuePersist();
+    } catch {
+      this.embeddingPaused = true;
+      if (!this.embeddingNoticeShown) { this.embeddingNoticeShown = true; new Notice(this.plugin.strings.assistantEmbeddingUnavailable); }
+    } finally {
+      this.embeddingRunning = false;
+      for (const resolve of this.embeddingWaiters.splice(0)) resolve();
+      this.changed();
+    }
   }
 
   private schedule(file: TFile): void {
@@ -127,7 +191,7 @@ export class AssistantIndex {
     if (before.length === chunks.length && before.every((chunk, index) => chunk.hash === chunks[index].hash)) return;
     for (const chunk of before) this.lexical.remove(chunk.id);
     for (const chunk of chunks) this.lexical.add(chunk);
-    this.records.set(file.path, chunks); this.indexedFiles++; if (persist) this.queuePersist(); this.changed();
+    this.records.set(file.path, chunks); this.indexedFiles++; if (persist) this.queuePersist(); void this.embedPending(); this.changed();
   }
 
   private globalKind(file: TFile): Chunk["kind"] | null {
@@ -167,16 +231,40 @@ export class AssistantIndex {
     const exact = this.lexical.findByName(query, chunk => this.allowed(scope, chunk));
     return exact.length ? exact.slice(0, limit).map(chunk => ({ chunk, score: Number.MAX_SAFE_INTEGER })) : this.lexical.search(query, chunk => this.allowed(scope, chunk), limit);
   }
+  async hybridSearch(query: string, scope = this.scope(), limit = 50): Promise<{ chunk: Chunk; score: number }[]> {
+    const lexical = this.search(query, scope, 50);
+    if (this.provider.id === "none" || !this.vectors.size || this.embeddingPaused) return lexical.slice(0, limit);
+    try {
+      const queryVector = await this.provider.embedQuery(query);
+      const semantic = this.lexical.all().filter(chunk => this.allowed(scope, chunk)).map(chunk => ({ chunk, score: cosine(queryVector, this.vectors.get(chunk.id)?.values ?? new Float32Array()) })).filter(hit => hit.score > 0).sort((left, right) => right.score - left.score).slice(0, 50);
+      const ranks = new Map<string, { chunk: Chunk; score: number }>();
+      for (const [rank, hit] of lexical.entries()) ranks.set(hit.chunk.id, { chunk: hit.chunk, score: 1 / (60 + rank + 1) });
+      for (const [rank, hit] of semantic.entries()) { const old = ranks.get(hit.chunk.id); ranks.set(hit.chunk.id, { chunk: hit.chunk, score: (old?.score ?? 0) + 1 / (60 + rank + 1) }); }
+      return [...ranks.values()].sort((left, right) => right.score - left.score).slice(0, limit);
+    } catch {
+      this.embeddingPaused = true;
+      if (!this.embeddingNoticeShown) { this.embeddingNoticeShown = true; new Notice(this.plugin.strings.assistantEmbeddingUnavailable); }
+      return lexical.slice(0, limit);
+    }
+  }
   byPath(path: string, scope = this.scope()): Chunk[] { return (this.records.get(path) ?? []).filter(chunk => this.allowed(scope, chunk)); }
 
   private async restore(): Promise<void> {
     try {
       const raw = await this.plugin.app.vault.adapter.read(cachePath);
-      const data = JSON.parse(raw) as { version: number; records: Chunk[]; stamps: Record<string, Stamp> };
+      const data = JSON.parse(raw) as { version: number; records: Chunk[]; stamps: Record<string, Stamp>; vectors?: Record<string, { hash: string }>; providerKey?: string };
       if (data.version !== version || !Array.isArray(data.records)) return;
       for (const chunk of data.records) { const entries = this.records.get(chunk.path) ?? []; entries.push(chunk); this.records.set(chunk.path, entries); }
       for (const [path, stamp] of Object.entries(data.stamps ?? {})) this.stamps.set(path, stamp);
       this.lexical.replace([...this.records.values()].flat());
+      if (data.providerKey) this.providerKey = data.providerKey;
+      try {
+        const binary = await this.plugin.app.vault.adapter.readBinary?.(vectorsPath);
+        if (binary && data.vectors) {
+          const stored = JSON.parse(new TextDecoder().decode(binary)) as Record<string, number[]>;
+          for (const [id, entry] of Object.entries(data.vectors)) if (stored[id]) this.vectors.set(id, { hash: entry.hash, values: new Float32Array(stored[id]) });
+        }
+      } catch { this.vectors.clear(); }
     } catch { this.records.clear(); }
   }
   private queuePersist(): void {
@@ -187,8 +275,10 @@ export class AssistantIndex {
     try {
       await this.plugin.app.vault.adapter.mkdir?.(".rpgvault/cache/assistant");
       const temporary = `${cachePath}.tmp`;
-      await this.plugin.app.vault.adapter.write(temporary, JSON.stringify({ version, records: [...this.records.values()].flat(), stamps: Object.fromEntries(this.stamps) }));
+      const vectorIndex = Object.fromEntries([...this.vectors].map(([id, vector]) => [id, { hash: vector.hash }]));
+      await this.plugin.app.vault.adapter.write(temporary, JSON.stringify({ version, records: [...this.records.values()].flat(), stamps: Object.fromEntries(this.stamps), vectors: vectorIndex, providerKey: this.providerKey }));
       if (this.plugin.app.vault.adapter.rename) await this.plugin.app.vault.adapter.rename(temporary, cachePath); else await this.plugin.app.vault.adapter.write(cachePath, JSON.stringify({ version, records: [...this.records.values()].flat() }));
+      if (this.vectors.size) await this.plugin.app.vault.adapter.writeBinary?.(vectorsPath, new TextEncoder().encode(JSON.stringify(Object.fromEntries([...this.vectors].map(([id, vector]) => [id, [...vector.values]])))).buffer);
     } catch {}
   }
 }

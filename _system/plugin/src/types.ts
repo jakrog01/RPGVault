@@ -128,6 +128,11 @@ export interface Settings {
   models: string[];
   /** Comma-separated phrases that follow an attack bonus in statblock text, such as "to hit". */
   attackBonusPhrases: string;
+  embeddingProvider: "none" | "ollama" | "gemini";
+  ollamaUrl: string;
+  ollamaModel: string;
+  geminiEmbeddingModel: string;
+  embeddingDimensions: number;
 }
 
 export const DEFAULTS: Settings = {
@@ -160,4 +165,9 @@ Rules:
   groupInitiative: true,
   models: ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash-lite", "gemini-2.5-pro", "gemini-2.5-flash"],
   attackBonusPhrases: "to hit",
+  embeddingProvider: "none",
+  ollamaUrl: "http://127.0.0.1:11434",
+  ollamaModel: "embeddinggemma",
+  geminiEmbeddingModel: "gemini-embedding-001",
+  embeddingDimensions: 768,
 };

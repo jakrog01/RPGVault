@@ -132,6 +132,11 @@ export default class TableTools extends Plugin {
     await this.saveData({ settings: this.settings, combat: this.combat, encounterSets: this.encounterSets } satisfies PluginData);
   }
 
+  async applyEmbeddingSettings(): Promise<void> {
+    await this.index.applyEmbeddingSettings();
+    await this.save();
+  }
+
   refreshViews(): void {
     for (const view of this.views) view.render();
   }
@@ -238,6 +243,21 @@ class TableToolsSettingTab extends PluginSettingTab {
       .addText(text => text.setValue(String(settings.contextBudgetTokens)).onChange(value => { settings.contextBudgetTokens = Number(value) || DEFAULTS.contextBudgetTokens; save(); }));
     new Setting(containerEl).setName(s.settingsToolSteps).setDesc(s.settingsToolStepsDescription)
       .addText(text => text.setValue(String(settings.maxToolSteps)).onChange(value => { settings.maxToolSteps = Number(value) || DEFAULTS.maxToolSteps; save(); }));
+    new Setting(containerEl).setName(s.settingsEmbeddingProvider).setDesc(s.settingsEmbeddingProviderDescription).addDropdown(dropdown => {
+      dropdown.addOption("none", "None").addOption("ollama", "Ollama").addOption("gemini", "Gemini");
+      dropdown.setValue(settings.embeddingProvider).onChange(value => { settings.embeddingProvider = value as Settings["embeddingProvider"]; void this.plugin.applyEmbeddingSettings(); });
+    });
+    new Setting(containerEl).setName(s.settingsOllamaUrl).addText(text => text.setValue(settings.ollamaUrl).onChange(value => { settings.ollamaUrl = value.trim(); void this.plugin.applyEmbeddingSettings(); }));
+    new Setting(containerEl).setName(s.settingsOllamaModel).addText(text => text.setValue(settings.ollamaModel).onChange(value => { settings.ollamaModel = value.trim(); void this.plugin.applyEmbeddingSettings(); }));
+    new Setting(containerEl).setName(s.settingsGeminiEmbeddingModel).setDesc(s.settingsGeminiEmbeddingDescription).addText(text => text.setValue(settings.geminiEmbeddingModel).onChange(value => { settings.geminiEmbeddingModel = value.trim(); void this.plugin.applyEmbeddingSettings(); }));
+    new Setting(containerEl).setName(s.settingsEmbeddingDimensions).addText(text => text.setValue(String(settings.embeddingDimensions)).onChange(value => { settings.embeddingDimensions = Number(value) || DEFAULTS.embeddingDimensions; void this.plugin.applyEmbeddingSettings(); }));
+    new Setting(containerEl).setName(s.settingsEmbeddingTest).addButton(button => button.setButtonText(s.settingsEmbeddingTest).onClick(async () => {
+      try {
+        await this.plugin.applyEmbeddingSettings();
+        const dimensions = await this.plugin.index.testEmbedding();
+        new Notice(format(s.settingsEmbeddingTestSuccess, { dimensions: String(dimensions) }));
+      } catch (error) { new Notice(error instanceof Error ? error.message : String(error)); }
+    }));
     const path = (name: string, key: "activePointerPath" | "campaignPath" | "worldDayPath" | "bestiaryPath" | "partyPath", description = ""): void => {
       const setting = new Setting(containerEl).setName(name);
       if (description) setting.setDesc(description);

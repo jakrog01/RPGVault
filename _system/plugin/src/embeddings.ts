@@ -26,11 +26,14 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
   async embedDocuments(texts: string[], signal?: AbortSignal): Promise<Float32Array[]> { return this.embed(texts.map(text => this.documentText(text)), signal); }
   async embedQuery(text: string, signal?: AbortSignal): Promise<Float32Array> { return (await this.embed([this.queryText(text)], signal))[0]; }
   private queryText(text: string): string { return this.model.startsWith("embeddinggemma") ? `task: search result | query: ${text}` : this.model.startsWith("qwen3") ? `Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: ${text}` : text; }
-  private documentText(text: string): string { return this.model.startsWith("embeddinggemma") ? `title: document | text: ${text}` : text; }
+  private documentText(text: string): string {
+    const [title, body] = text.split("\u0000", 2);
+    return this.model.startsWith("embeddinggemma") ? `title: ${body === undefined ? "document" : title} | text: ${body ?? title}` : body ?? title;
+  }
   private async embed(input: string[], signal?: AbortSignal): Promise<Float32Array[]> {
-    const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/api/embed`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: this.model, input }), signal });
-    if (!response.ok) throw new Error("Ollama embedding request failed.");
-    const payload = await response.json() as { embeddings?: number[][] };
+    const response = await requestUrl({ url: `${this.baseUrl.replace(/\/$/, "")}/api/embed`, method: "POST", contentType: "application/json", body: JSON.stringify({ model: this.model, input }), throw: false });
+    if (response.status >= 400) throw new Error("Ollama embedding request failed.");
+    const payload = response.json as { embeddings?: number[][] };
     const values = (payload.embeddings ?? []).map(normalise); this.dimensions = values[0]?.length ?? this.dimensions; return values;
   }
 }
@@ -41,10 +44,14 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
   async embedDocuments(texts: string[]): Promise<Float32Array[]> { return this.embed(texts, "RETRIEVAL_DOCUMENT"); }
   async embedQuery(text: string): Promise<Float32Array> { return (await this.embed([text], "RETRIEVAL_QUERY"))[0]; }
   private async embed(texts: string[], taskType: string): Promise<Float32Array[]> {
-    const response = await requestUrl({ url: `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:batchEmbedContents?key=${encodeURIComponent(this.apiKey)}`, method: "POST", contentType: "application/json", body: JSON.stringify({ requests: texts.map(text => ({ model: `models/${this.model}`, content: { parts: [{ text }] }, taskType, outputDimensionality: this.dimensions })) }), throw: false });
-    if (response.status >= 400) throw new Error("Gemini embedding request failed.");
-    const payload = response.json as { embeddings?: { values?: number[] }[] };
-    return (payload.embeddings ?? []).map(item => normalise(item.values ?? []));
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const response = await requestUrl({ url: `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:batchEmbedContents?key=${encodeURIComponent(this.apiKey)}`, method: "POST", contentType: "application/json", body: JSON.stringify({ requests: texts.map(text => ({ model: `models/${this.model}`, content: { parts: [{ text }] }, taskType, outputDimensionality: this.dimensions })) }), throw: false });
+      if (response.status === 429 && attempt < 2) { await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1))); continue; }
+      if (response.status >= 400) throw new Error("Gemini embedding request failed.");
+      const payload = response.json as { embeddings?: { values?: number[] }[] };
+      return (payload.embeddings ?? []).map(item => normalise(item.values ?? []));
+    }
+    throw new Error("Gemini embedding request failed.");
   }
 }
 

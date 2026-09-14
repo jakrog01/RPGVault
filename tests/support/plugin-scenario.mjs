@@ -93,6 +93,8 @@ export async function runScenario({ override } = {}) {
   assert.equal(plugin.settings.temperature, 0.3)
   assert.equal(plugin.settings.maxContext, 24000)
   assert.equal(env.storage.data.settings.temperature, 0.3, "settings are persisted")
+  await buttonComponent(settingsEl, s.settingsEmbeddingTest).click()
+  assert.ok(notices.includes(fill(s.settingsEmbeddingTestSuccess, { dimensions: 0 })))
 
   // ---------- Commands without a selection ----------
   await command(s.commandAskSelection).editorCallback({ getSelection: () => "" })
@@ -558,6 +560,18 @@ export async function runScenario({ override } = {}) {
   env.emit("changed", invalidSkill)
   await until(() => notices.some(notice => notice.includes(invalidSkill.path)), "invalid assistant skill")
   assert.ok(notices.some(notice => notice.includes(fill(s.assistantSkillInvalid, { paths: invalidSkill.path }))))
+
+  // Embedding status, failure fallback, and the settings test each render their localised text.
+  plugin.index.embeddingRunning = true
+  assistant.renderIndexStatus()
+  plugin.index.embeddingRunning = false
+  env.network.requestUrl = async () => { throw new Error("embedding offline") }
+  plugin.settings.embeddingProvider = "ollama"
+  await plugin.applyEmbeddingSettings()
+  await plugin.index.whenEmbedded()
+  assert.ok(notices.includes(s.assistantEmbeddingUnavailable))
+  await buttonComponent(settingsEl, s.settingsEmbeddingTest).click()
+  assert.ok(notices.some(notice => notice.includes("embedding offline")))
 
   for (const ribbon of plugin.ribbons) await ribbon.callback()
   return { env, plugin }

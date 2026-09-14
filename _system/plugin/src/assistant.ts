@@ -269,7 +269,7 @@ export class AssistantView extends ItemView {
       const skill = this.plugin.skills.get(skillHint);
       if (skill && (!skill.system || skill.system === scope.system)) add(`## Requested skill: ${skill.name}\n${skill.body}`);
       if (settings.contextRetrieval) {
-        const hits = this.plugin.index.search(`${previousQuestion} ${question}`, scope, 50).filter(hit => !pinned.has(hit.chunk.path));
+        const hits = (await this.plugin.index.hybridSearch(`${previousQuestion} ${question}`, scope, 50)).filter(hit => !pinned.has(hit.chunk.path));
         const ruleIndexes = hits.flatMap((hit, index) => ["house-rule", "homebrew", "system"].includes(hit.chunk.kind) ? [index] : []);
         const rules = ruleIndexes.map(index => hits[index]).sort(compareRuleHits);
         const retrieved = [...hits];

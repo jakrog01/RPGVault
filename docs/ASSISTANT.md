@@ -25,3 +25,5 @@ Use three senses and offer one detail for each party member.
 ```
 
 The lexical index is always local. Its cache is `.rpgvault/cache/assistant/` and can be rebuilt with the Assistant rebuild index command. The default embedding provider is none; no note text is sent to an embedding service by default.
+
+Optional semantic search can be enabled in Table Tools settings. Ollama sends batches of at most 32 chunks to the configured local URL (the default is `http://127.0.0.1:11434` with `embeddinggemma`). Gemini uses `gemini-embedding-001` by default and sends note text to Google; select it only when that privacy trade-off is acceptable. Changing provider, model, or dimensions invalidates vectors without reading notes again. Vectors live in `.rpgvault/cache/assistant/vectors.bin`, alongside the retrieval manifest. Failed embedding requests pause semantic work, show one notice, and leave lexical retrieval available.
