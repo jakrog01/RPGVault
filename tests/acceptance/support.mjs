@@ -57,6 +57,16 @@ export function createVault({ adapterFiles } = {}) {
   env.writes = []
   const write = env.app.vault.adapter.write
   env.app.vault.adapter.write = async (filePath, value) => { env.writes.push(filePath); return write(filePath, value) }
+  env.binaryWrites = []
+  env.app.vault.adapter.writeBinary = async (filePath, data) => {
+    env.binaryWrites.push(filePath)
+    env.adapterFiles.set(filePath, data instanceof ArrayBuffer ? data.slice(0) : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength))
+  }
+  env.app.vault.adapter.readBinary = async filePath => {
+    if (!env.adapterFiles.has(filePath)) throw new Error("missing")
+    const value = env.adapterFiles.get(filePath)
+    return value instanceof ArrayBuffer ? value.slice(0) : new TextEncoder().encode(String(value)).buffer
+  }
   env.layout = []
   env.workspace.onLayoutReady = callback => { env.layout.push(callback) }
 
