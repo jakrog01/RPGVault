@@ -37,7 +37,7 @@ export class AssistantIndex {
   private embeddingRunning = false;
   private embeddingPaused = false;
   private embeddingWaiters: (() => void)[] = [];
-  private embeddingNoticeShown = false;
+  private embeddingOutage = false;
 
   constructor(private readonly plugin: TableTools) { this.restored = this.restore(); }
 
@@ -101,6 +101,7 @@ export class AssistantIndex {
     if (changed) {
       this.providerKey = key;
       this.vectors.clear();
+      this.embeddingOutage = false;
       this.queuePersist();
     }
     this.provider = settings.embeddingProvider === "ollama"
@@ -124,8 +125,16 @@ export class AssistantIndex {
 
   private resumeEmbedding(): void {
     this.embeddingPaused = false;
-    this.embeddingNoticeShown = false;
     void this.embedPending();
+  }
+
+  private embeddingSucceeded(): void { this.embeddingOutage = false; }
+
+  private embeddingFailed(): void {
+    this.embeddingPaused = true;
+    if (this.embeddingOutage) return;
+    this.embeddingOutage = true;
+    new Notice(this.plugin.strings.assistantEmbeddingUnavailable);
   }
 
   private async embedPending(): Promise<void> {
@@ -138,13 +147,13 @@ export class AssistantIndex {
       for (let index = 0; index < pending.length; index += 32) {
         const batch = pending.slice(index, index + 32);
         const values = await this.provider.embedDocuments(batch.map(chunk => `${chunk.title}\u0000${chunk.text}`));
+        this.embeddingSucceeded();
         for (let item = 0; item < batch.length; item++) this.vectors.set(batch[item].id, { hash: batch[item].hash, values: values[item] });
         this.changed();
       }
       this.queuePersist();
     } catch {
-      this.embeddingPaused = true;
-      if (!this.embeddingNoticeShown) { this.embeddingNoticeShown = true; new Notice(this.plugin.strings.assistantEmbeddingUnavailable); }
+      this.embeddingFailed();
     } finally {
       this.embeddingRunning = false;
       for (const resolve of this.embeddingWaiters.splice(0)) resolve();
@@ -258,6 +267,7 @@ export class AssistantIndex {
     if (this.provider.id === "none") return lexical.slice(0, limit);
     try {
       const queryVector = await this.provider.embedQuery(query);
+      this.embeddingSucceeded();
       if (this.embeddingPaused) this.resumeEmbedding();
       if (!this.vectors.size) return lexical.slice(0, limit);
       const semantic = this.lexical.all().filter(chunk => this.allowed(scope, chunk)).map(chunk => ({ chunk, score: cosine(queryVector, this.vectors.get(chunk.id)?.values ?? new Float32Array()) })).filter(hit => hit.score > 0).sort((left, right) => right.score - left.score).slice(0, 50);
@@ -266,8 +276,7 @@ export class AssistantIndex {
       for (const [rank, hit] of semantic.entries()) { const old = ranks.get(hit.chunk.id); ranks.set(hit.chunk.id, { chunk: hit.chunk, score: (old?.score ?? 0) + 1 / (60 + rank + 1) }); }
       return [...ranks.values()].sort((left, right) => right.score - left.score).slice(0, limit);
     } catch {
-      this.embeddingPaused = true;
-      if (!this.embeddingNoticeShown) { this.embeddingNoticeShown = true; new Notice(this.plugin.strings.assistantEmbeddingUnavailable); }
+      this.embeddingFailed();
       return lexical.slice(0, limit);
     }
   }
