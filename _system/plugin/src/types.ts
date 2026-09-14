@@ -133,6 +133,8 @@ export interface Settings {
   ollamaModel: string;
   geminiEmbeddingModel: string;
   embeddingDimensions: number;
+  /** Open the table home after Obsidian has finished restoring its layout. */
+  openHomeOnStartup: boolean;
 }
 
 export const DEFAULTS: Settings = {
@@ -170,4 +172,5 @@ Rules:
   ollamaModel: "embeddinggemma",
   geminiEmbeddingModel: "gemini-embedding-001",
   embeddingDimensions: 768,
+  openHomeOnStartup: true,
 };

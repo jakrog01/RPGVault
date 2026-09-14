@@ -66,7 +66,8 @@ export async function runScenario({ override } = {}) {
   const settingsEl = tab.containerEl
   for (const name of [s.settingsAssistantHeading, s.settingsApiKey, s.settingsModel, s.settingsTemperature, s.settingsSystemPrompt, s.settingsContextLimit,
     s.settingsActivePointer, s.settingsCampaignOverride, s.settingsWorldDayOverride, s.settingsCombatHeading, s.settingsBestiaryOverride,
-    s.settingsPartyOverride, s.settingsAverageHitPoints, s.settingsGroupInitiative, s.settingsAttackBonusPhrases]) assert.ok(settingByName(settingsEl, name), `setting ${name}`)
+    s.settingsPartyOverride, s.settingsHomeHeading, s.settingsOpenHomeOnStartup, s.settingsAverageHitPoints, s.settingsGroupInitiative,
+    s.settingsAttackBonusPhrases]) assert.ok(settingByName(settingsEl, name), `setting ${name}`)
   await buttonComponent(settingsEl, s.settingsFetchModels).click()
   assert.ok(notices.includes(s.settingsNeedApiKey))
   settingByName(settingsEl, s.settingsApiKey).components[0].change(" AIzaTEST ")
@@ -574,6 +575,17 @@ export async function runScenario({ override } = {}) {
   assert.ok(notices.some(notice => notice.includes("embedding offline")))
 
   for (const ribbon of plugin.ribbons) await ribbon.callback()
+  await command(s.commandOpenHome).callback()
+  const home = env.leaves.find(leaf => leaf.type === "tt-home").view
+  addFile("Runs/Player/Run.md", "", { type: "run", role: "player", campaign: "[[Campaigns/Glass/Campaign]]", party: "[[Parties/Watch/Party]]" })
+  addFile("Runs/Loose/Run.md", "", { type: "run", role: "gm", party: "[[Parties/Watch/Party]]" })
+  await home.render()
+  for (const filePath of ["Runs/Harbor/Run.md", "Runs/Player/Run.md", "Runs/Loose/Run.md", "Campaigns/Glass/Campaign.md", "Parties/Watch/Party.md"]) env.files.delete(filePath)
+  await home.render()
+  addFile("Runs/Harbor/Run.md", "# Harbor run", { type: "run", campaign: "[[Campaigns/Glass/Campaign]]", party: "[[Parties/Watch/Party]]" })
+  addFile("Runs/Harbor/State.md", "State: the gate is open.")
+  addFile("Campaigns/Glass/Campaign.md", "Campaign: Glassgate.", { type: "campaign", system: "dnd5e" })
+  addFile("Parties/Watch/Party.md", "", { type: "party" })
   return { env, plugin }
 }
 

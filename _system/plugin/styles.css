@@ -18,6 +18,22 @@
 .tt-die { cursor: pointer; border-bottom: 1px dashed var(--text-accent); color: var(--text-accent); font-variant-numeric: tabular-nums; }
 .tt-die:hover { background: color-mix(in srgb, var(--text-accent) 12%, transparent); border-radius: 3px; }
 
+/* ===== Table Tools: home ===== */
+.tt-home { padding: 14px; overflow-y: auto; color: var(--text-normal); font-size: var(--font-ui-small); }
+.tt-home h2 { margin: 0 0 12px; font-family: var(--font-text); }
+.tt-home h3 { margin: 0 0 8px; font-size: 1em; }
+.tt-home-section { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.tt-home-section > h3 { grid-column: 1 / -1; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 5px; }
+.tt-home-active, .tt-home-campaign, .tt-home-run, .tt-home-party { border: 1px solid var(--background-modifier-border); border-radius: 8px; background: var(--background-secondary); padding: 10px; }
+.tt-home-active { border-left: 3px solid var(--interactive-accent); }
+.tt-home-run.tt-active { background: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-secondary)); }
+.tt-home-name { font-weight: 700; font-size: 1.05em; }
+.tt-home-role { color: var(--text-accent); font-size: .9em; }
+.tt-home-day { margin-top: 6px; color: var(--text-muted); }
+.tt-home-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.tt-home-campaign > .tt-btn, .tt-home-run > .tt-btn, .tt-home-party > .tt-btn { margin-top: 8px; }
+@media (max-width: 420px) { .tt-home { padding: 10px; } .tt-home-section { grid-template-columns: 1fr; } .tt-home-actions .tt-btn { flex: 1; justify-content: center; } }
+
 /* ===== Combat ===== */
 .tt-toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--background-modifier-border); flex-wrap: wrap; position: sticky; top: 0; background: var(--background-primary); z-index: 2; }
 .tt-toolbar-right { margin-left: auto; display: flex; gap: 2px; }

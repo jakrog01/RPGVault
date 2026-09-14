@@ -7,6 +7,7 @@ import { Combat, DEFAULTS, EncounterSet, ScopePolicy, Settings, SourceKind } fro
 import { AssistantIndex } from "./indexer";
 import { Skill, loadSkills } from "./tools";
 import { assistantLayerPaths, defaultScopePolicy } from "./scope";
+import { HomeView, HOME_VIEW } from "./home";
 
 interface PluginData { settings: Settings; combat: Combat; encounterSets: EncounterSet[] }
 export interface RunContext { run: TFile; campaign: TFile; party: TFile; state: TFile; day: TFile | null }
@@ -23,11 +24,15 @@ export default class TableTools extends Plugin {
   tracker = new CombatTracker(this);
   /** Open combat views, re-rendered after every combat change. */
   views = new Set<CombatView>();
+  /** Open home views, refreshed after vault and active-run changes. */
+  homeViews = new Set<HomeView>();
   index!: AssistantIndex;
   skills = new Map<string, Skill>();
   invalidSkillsKey = "";
   scopePolicy: ScopePolicy = { ...defaultScopePolicy, exclude: [...(defaultScopePolicy.exclude ?? [])], gm: [...defaultScopePolicy.gm], player: [...defaultScopePolicy.player] };
   private skillReloadTimer?: number;
+  private homeRefreshTimer?: number;
+  private homeRefreshPaths = new Set<string>();
 
   async onload(): Promise<void> {
     await this.loadStrings();
@@ -39,23 +44,29 @@ export default class TableTools extends Plugin {
     for (const event of ["create", "modify", "delete"]) this.registerEvent(vaultEvents.on(event, file => {
       if (file instanceof TFile && SCOPE_PATHS.includes(file.path)) void this.loadScopePolicy();
       if (file instanceof TFile && this.isSkillPath(file.path)) void this.reloadSkills();
+      if (file instanceof TFile) this.scheduleHomeRefresh(file.path);
     }) as never);
     this.skills = await loadSkills(this);
     this.registerEvent(this.app.metadataCache.on("changed", file => {
       if (file instanceof TFile && this.isSkillPath(file.path)) void this.reloadSkills();
+      if (file instanceof TFile) this.scheduleHomeRefresh(file.path);
     }));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
       if (file instanceof TFile && (this.isSkillPath(file.path) || this.isSkillPath(oldPath))) void this.reloadSkills();
+      if (file instanceof TFile) this.scheduleHomeRefresh(file.path, oldPath);
     }));
     const s = this.strings;
     this.registerView(COMBAT_VIEW, leaf => new CombatView(leaf, this));
     this.registerView(ASSISTANT_VIEW, leaf => new AssistantView(leaf, this));
+    this.registerView(HOME_VIEW, leaf => new HomeView(leaf, this));
 
+    this.addRibbonIcon("home", s.ribbonHome, () => this.openHome());
     this.addRibbonIcon("swords", s.ribbonCombat, () => void this.openView(COMBAT_VIEW));
     this.addRibbonIcon("sparkles", s.ribbonAssistant, () => void this.openView(ASSISTANT_VIEW));
 
     this.addCommand({ id: "open-combat", name: s.commandOpenCombat, callback: () => void this.openView(COMBAT_VIEW) });
     this.addCommand({ id: "open-assistant", name: s.commandOpenAssistant, callback: () => void this.openView(ASSISTANT_VIEW) });
+    this.addCommand({ id: "open-home", name: s.commandOpenHome, callback: () => this.openHome() });
     this.addCommand({ id: "assistant-rebuild-index", name: s.commandRebuildAssistantIndex, callback: () => void this.index.rebuild(true) });
     this.addCommand({ id: "combat-next-turn", name: s.commandNextTurn, callback: () => this.tracker.advance(1) });
     this.addCommand({ id: "combat-previous-turn", name: s.commandPreviousTurn, callback: () => this.tracker.advance(-1) });
@@ -71,9 +82,27 @@ export default class TableTools extends Plugin {
     });
 
     this.addSettingTab(new TableToolsSettingTab(this.app, this));
+    const workspace = this.app.workspace as typeof this.app.workspace & { onLayoutReady?: (callback: () => void) => void };
+    workspace.onLayoutReady?.(() => {
+      if (this.settings.openHomeOnStartup && !this.app.workspace.getLeavesOfType(HOME_VIEW).length) void this.openHome();
+    });
   }
 
   async onunload(): Promise<void> { await this.index?.dispose(); }
+
+  private scheduleHomeRefresh(...paths: string[]): void {
+    paths.forEach(path => this.homeRefreshPaths.add(path));
+    if (this.homeRefreshTimer) return;
+    this.homeRefreshTimer = setTimeout(() => {
+      this.homeRefreshTimer = undefined;
+      const changed = this.homeRefreshPaths;
+      this.homeRefreshPaths = new Set<string>();
+      for (const view of this.homeViews) {
+        changed.forEach(path => view.invalidate(path));
+        void view.render();
+      }
+    }, 200) as unknown as number;
+  }
 
   async loadStrings(): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(STRINGS_OVERRIDE);
@@ -148,6 +177,40 @@ export default class TableTools extends Plugin {
     if (!leaf) return;
     await leaf.setViewState({ type, active: true });
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** Opens the overview in the main workspace area, reusing an existing home leaf. */
+  async openHome(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(HOME_VIEW)[0];
+    if (existing) { this.app.workspace.revealLeaf(existing); return; }
+    const workspace = this.app.workspace as typeof this.app.workspace & { getLeaf?: (newLeaf?: boolean) => ReturnType<typeof this.app.workspace.getRightLeaf> };
+    const leaf = workspace.getLeaf?.(true) ?? this.app.workspace.getRightLeaf(false);
+    if (!leaf) return;
+    await leaf.setViewState({ type: HOME_VIEW, active: true });
+    this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** Changes the single active-run pointer while preserving the ADR-0002 pointer semantics. */
+  async setActiveRun(runPath: string): Promise<void> {
+    const target = runPath.replace(/\.md$/, "");
+    let pointer = this.app.vault.getAbstractFileByPath(this.settings.activePointerPath);
+    if (!(pointer instanceof TFile)) {
+      pointer = await this.app.vault.create(this.settings.activePointerPath, `---\nrun: "[[${target}]]"\n---\n\n# Active Run\n`);
+    } else await this.app.fileManager.processFrontMatter(pointer, fields => { fields.run = `[[${target}]]`; });
+    this.reloadSkills();
+    void this.index.rebuild(true);
+    this.scheduleHomeRefresh(this.settings.activePointerPath);
+  }
+
+  /** Reads the display name for a system, preferring a vault-local package. */
+  async systemName(id: string): Promise<string> {
+    for (const root of ["_local/", "_system/"]) {
+      try {
+        const value = JSON.parse(await this.app.vault.adapter.read(`${root}systems/${id}/package.json`)) as { name?: unknown };
+        if (typeof value.name === "string" && value.name) return value.name;
+      } catch { /* Try the next layer. */ }
+    }
+    return id;
   }
 
   assistant(): AssistantView | undefined {
@@ -266,6 +329,10 @@ class TableToolsSettingTab extends PluginSettingTab {
     path(s.settingsActivePointer, "activePointerPath");
     path(s.settingsCampaignOverride, "campaignPath", s.settingsUseCurrentRun);
     path(s.settingsWorldDayOverride, "worldDayPath", s.settingsUseCurrentRun);
+
+    new Setting(containerEl).setName(s.settingsHomeHeading).setHeading();
+    new Setting(containerEl).setName(s.settingsOpenHomeOnStartup).setDesc(s.settingsOpenHomeOnStartupDescription)
+      .addToggle(toggle => toggle.setValue(settings.openHomeOnStartup).onChange(value => { settings.openHomeOnStartup = value; save(); }));
 
     new Setting(containerEl).setName(s.settingsCombatHeading).setHeading();
     path(s.settingsBestiaryOverride, "bestiaryPath", s.settingsBestiaryOverrideDescription);

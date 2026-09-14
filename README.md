@@ -14,4 +14,4 @@ For an offline update, download a release and run `node _system/bin/rpgvault.mjs
 
 The Table Tools plugin adds a combat tracker and a Gemini assistant; translate or rename any of its labels through `_local/plugins/table-tools/strings.json`.
 
-See [architecture](docs/ARCHITECTURE.md), [assistant retrieval](docs/ASSISTANT.md), [customisation](docs/CUSTOMISING.md), [upgrading](docs/UPGRADING.md), and [adopting an existing vault](docs/ADOPTING.md).
+See [the table home](docs/HOME.md), [architecture](docs/ARCHITECTURE.md), [assistant retrieval](docs/ASSISTANT.md), [customisation](docs/CUSTOMISING.md), [upgrading](docs/UPGRADING.md), and [adopting an existing vault](docs/ADOPTING.md).
