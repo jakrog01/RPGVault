@@ -9,7 +9,7 @@ import { cosine, EmbeddingProvider, GeminiEmbeddingProvider, NoneEmbeddingProvid
 
 const cachePath = ".rpgvault/cache/assistant/manifest.json";
 const vectorsPath = ".rpgvault/cache/assistant/vectors.bin";
-const version = 4;
+const version = 5;
 
 export type ScoredChunk = { chunk: Chunk; score: number };
 const rulePriority = (kind: Chunk["kind"]): number => kind === "house-rule" ? 3 : kind === "homebrew" ? 2 : kind === "system" ? 1 : 0;
@@ -101,8 +101,6 @@ export class AssistantIndex {
     if (changed) {
       this.providerKey = key;
       this.vectors.clear();
-      this.embeddingPaused = false;
-      this.embeddingNoticeShown = false;
       this.queuePersist();
     }
     this.provider = settings.embeddingProvider === "ollama"
@@ -110,7 +108,7 @@ export class AssistantIndex {
       : settings.embeddingProvider === "gemini"
         ? new GeminiEmbeddingProvider(settings.apiKey, settings.embeddingDimensions, settings.geminiEmbeddingModel)
         : new NoneEmbeddingProvider();
-    void this.embedPending();
+    this.resumeEmbedding();
   }
 
   whenEmbedded(): Promise<void> {
@@ -123,6 +121,12 @@ export class AssistantIndex {
   }
 
   private embeddingPending(): number { return this.provider.id === "none" ? 0 : [...this.records.values()].flat().filter(chunk => this.vectors.get(chunk.id)?.hash !== chunk.hash).length; }
+
+  private resumeEmbedding(): void {
+    this.embeddingPaused = false;
+    this.embeddingNoticeShown = false;
+    void this.embedPending();
+  }
 
   private async embedPending(): Promise<void> {
     if (this.embeddingRunning || this.embeddingPaused || this.provider.id === "none") return;
@@ -191,7 +195,12 @@ export class AssistantIndex {
     if (before.length === chunks.length && before.every((chunk, index) => chunk.hash === chunks[index].hash)) return;
     for (const chunk of before) this.lexical.remove(chunk.id);
     for (const chunk of chunks) this.lexical.add(chunk);
-    this.records.set(file.path, chunks); this.indexedFiles++; if (persist) this.queuePersist(); void this.embedPending(); this.changed();
+    this.removeVectors(before);
+    this.records.set(file.path, chunks);
+    this.indexedFiles++;
+    if (persist) this.queuePersist();
+    this.resumeEmbedding();
+    this.changed();
   }
 
   private globalKind(file: TFile): Chunk["kind"] | null {
@@ -206,7 +215,20 @@ export class AssistantIndex {
     return "note";
   }
 
-  private drop(path: string, persist = true): void { const chunks = this.records.get(path); if (!chunks) return; for (const chunk of chunks) this.lexical.remove(chunk.id); this.records.delete(path); this.stamps.delete(path); if (persist) this.queuePersist(); this.changed(); }
+  private removeVectors(chunks: Chunk[]): void {
+    for (const chunk of chunks) this.vectors.delete(chunk.id);
+  }
+  private drop(path: string, persist = true): void {
+    const chunks = this.records.get(path);
+    if (!chunks) return;
+    for (const chunk of chunks) this.lexical.remove(chunk.id);
+    this.removeVectors(chunks);
+    this.records.delete(path);
+    this.stamps.delete(path);
+    if (persist) this.queuePersist();
+    this.resumeEmbedding();
+    this.changed();
+  }
   private allowed(scope: Scope, chunk: Chunk): boolean {
     if (chunk.excluded || isBuiltInExcluded(chunk.path) || scope.exclude.some(prefix => chunk.path === prefix.replace(/\/$/, "") || chunk.path.startsWith(prefix)) || !scope.kinds.includes(chunk.kind) || (scope.role === "player" && chunk.gmOnly)) return false;
     const rooted = sourceKind(scope, chunk.path);
@@ -233,9 +255,11 @@ export class AssistantIndex {
   }
   async hybridSearch(query: string, scope = this.scope(), limit = 50): Promise<{ chunk: Chunk; score: number }[]> {
     const lexical = this.search(query, scope, 50);
-    if (this.provider.id === "none" || !this.vectors.size || this.embeddingPaused) return lexical.slice(0, limit);
+    if (this.provider.id === "none") return lexical.slice(0, limit);
     try {
       const queryVector = await this.provider.embedQuery(query);
+      if (this.embeddingPaused) this.resumeEmbedding();
+      if (!this.vectors.size) return lexical.slice(0, limit);
       const semantic = this.lexical.all().filter(chunk => this.allowed(scope, chunk)).map(chunk => ({ chunk, score: cosine(queryVector, this.vectors.get(chunk.id)?.values ?? new Float32Array()) })).filter(hit => hit.score > 0).sort((left, right) => right.score - left.score).slice(0, 50);
       const ranks = new Map<string, { chunk: Chunk; score: number }>();
       for (const [rank, hit] of lexical.entries()) ranks.set(hit.chunk.id, { chunk: hit.chunk, score: 1 / (60 + rank + 1) });
@@ -252,7 +276,7 @@ export class AssistantIndex {
   private async restore(): Promise<void> {
     try {
       const raw = await this.plugin.app.vault.adapter.read(cachePath);
-      const data = JSON.parse(raw) as { version: number; records: Chunk[]; stamps: Record<string, Stamp>; vectors?: Record<string, { hash: string }>; providerKey?: string };
+      const data = JSON.parse(raw) as { version: number; records: Chunk[]; stamps: Record<string, Stamp>; vectors?: Record<string, { hash: string; offset: number }>; providerKey?: string; providerId?: string; dimensions?: number };
       if (data.version !== version || !Array.isArray(data.records)) return;
       for (const chunk of data.records) { const entries = this.records.get(chunk.path) ?? []; entries.push(chunk); this.records.set(chunk.path, entries); }
       for (const [path, stamp] of Object.entries(data.stamps ?? {})) this.stamps.set(path, stamp);
@@ -260,9 +284,14 @@ export class AssistantIndex {
       if (data.providerKey) this.providerKey = data.providerKey;
       try {
         const binary = await this.plugin.app.vault.adapter.readBinary?.(vectorsPath);
-        if (binary && data.vectors) {
-          const stored = JSON.parse(new TextDecoder().decode(binary)) as Record<string, number[]>;
-          for (const [id, entry] of Object.entries(data.vectors)) if (stored[id]) this.vectors.set(id, { hash: entry.hash, values: new Float32Array(stored[id]) });
+        if (binary && data.vectors && data.dimensions && binary.byteLength % 4 === 0) {
+          const stored = new Float32Array(binary);
+          for (const [id, entry] of Object.entries(data.vectors)) {
+            const offset = entry.offset;
+            if (Number.isInteger(offset) && offset >= 0 && offset + data.dimensions <= stored.length) {
+              this.vectors.set(id, { hash: entry.hash, values: stored.slice(offset, offset + data.dimensions) });
+            }
+          }
         }
       } catch { this.vectors.clear(); }
     } catch { this.records.clear(); }
@@ -275,10 +304,22 @@ export class AssistantIndex {
     try {
       await this.plugin.app.vault.adapter.mkdir?.(".rpgvault/cache/assistant");
       const temporary = `${cachePath}.tmp`;
-      const vectorIndex = Object.fromEntries([...this.vectors].map(([id, vector]) => [id, { hash: vector.hash }]));
-      await this.plugin.app.vault.adapter.write(temporary, JSON.stringify({ version, records: [...this.records.values()].flat(), stamps: Object.fromEntries(this.stamps), vectors: vectorIndex, providerKey: this.providerKey }));
+      const live = new Set([...this.records.values()].flat().map(chunk => chunk.id));
+      for (const id of this.vectors.keys()) if (!live.has(id)) this.vectors.delete(id);
+      const entries = [...this.vectors].filter(([, vector]) => vector.values.length > 0);
+      const dimensions = entries[0]?.[1].values.length ?? 0;
+      const compatible = entries.filter(([, vector]) => vector.values.length === dimensions);
+      const values = new Float32Array(compatible.length * dimensions);
+      const vectorIndex: Record<string, { hash: string; offset: number }> = {};
+      for (let index = 0; index < compatible.length; index++) {
+        const [id, vector] = compatible[index];
+        const offset = index * dimensions;
+        values.set(vector.values, offset);
+        vectorIndex[id] = { hash: vector.hash, offset };
+      }
+      await this.plugin.app.vault.adapter.write(temporary, JSON.stringify({ version, records: [...this.records.values()].flat(), stamps: Object.fromEntries(this.stamps), vectors: vectorIndex, providerKey: this.providerKey, providerId: this.provider.id, dimensions }));
       if (this.plugin.app.vault.adapter.rename) await this.plugin.app.vault.adapter.rename(temporary, cachePath); else await this.plugin.app.vault.adapter.write(cachePath, JSON.stringify({ version, records: [...this.records.values()].flat() }));
-      if (this.vectors.size) await this.plugin.app.vault.adapter.writeBinary?.(vectorsPath, new TextEncoder().encode(JSON.stringify(Object.fromEntries([...this.vectors].map(([id, vector]) => [id, [...vector.values]])))).buffer);
+      if (compatible.length) await this.plugin.app.vault.adapter.writeBinary?.(vectorsPath, values.buffer);
     } catch {}
   }
 }
