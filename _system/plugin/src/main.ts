@@ -25,7 +25,9 @@ export default class TableTools extends Plugin {
   views = new Set<CombatView>();
   index!: AssistantIndex;
   skills = new Map<string, Skill>();
+  invalidSkillsKey = "";
   scopePolicy: ScopePolicy = { ...defaultScopePolicy, exclude: [...(defaultScopePolicy.exclude ?? [])], gm: [...defaultScopePolicy.gm], player: [...defaultScopePolicy.player] };
+  private skillReloadTimer?: number;
 
   async onload(): Promise<void> {
     await this.loadStrings();
@@ -110,7 +112,13 @@ export default class TableTools extends Plugin {
     return path === this.settings.activePointerPath || path === this.currentContext()?.run.path;
   }
 
-  private async reloadSkills(): Promise<void> { this.skills = await loadSkills(this); }
+  private reloadSkills(): void {
+    if (this.skillReloadTimer) clearTimeout(this.skillReloadTimer);
+    this.skillReloadTimer = setTimeout(() => {
+      this.skillReloadTimer = undefined;
+      void loadSkills(this).then(skills => { this.skills = skills; });
+    }, 200) as unknown as number;
+  }
 
 
   async loadSettings(): Promise<void> {

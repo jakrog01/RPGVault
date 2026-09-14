@@ -68,7 +68,7 @@ export class VaultTools {
 export async function loadSkills(plugin: TableTools): Promise<Map<string, Skill>> {
   const paths = [...assistantLayerPaths("skills")].reverse();
   const scope = plugin.index?.scope();
-  if (scope?.campaignFolder) paths.push(`${scope.campaignFolder}/Assistant/skills`);
+  if (scope?.role === "gm" && scope.campaignFolder) paths.push(`${scope.campaignFolder}/Assistant/skills`);
   const result = new Map<string, Skill>();
   const invalid: string[] = [];
   for (const path of paths) for (const file of plugin.app.vault.getMarkdownFiles().filter(candidate => candidate.path.startsWith(`${path}/`))) {
@@ -84,6 +84,10 @@ export async function loadSkills(plugin: TableTools): Promise<Map<string, Skill>
     const tools = Array.isArray(fields.tools) ? fields.tools.map(String) : typeof fields.tools === "string" ? fields.tools.replace(/[\[\]]/g, "").split(",").map(value => value.trim()).filter(Boolean) : [];
     result.set(name, { name, description, body, system: typeof fields.system === "string" ? fields.system : undefined, tools, path: file.path });
   }
-  if (invalid.length) new Notice(format(plugin.strings.assistantSkillInvalid, { paths: invalid.join(", ") }));
+  const invalidKey = invalid.sort().join("\n");
+  if (invalidKey !== plugin.invalidSkillsKey) {
+    plugin.invalidSkillsKey = invalidKey;
+    if (invalid.length) new Notice(format(plugin.strings.assistantSkillInvalid, { paths: invalid.join(", ") }));
+  }
   return result;
 }

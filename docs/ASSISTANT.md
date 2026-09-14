@@ -12,7 +12,7 @@ Every final answer has a Sources disclosure listing the retrieved notes and note
 
 The model can search and read scoped notes, find names, list notes, look up rules, inspect run or combat state, roll dice, and load a skill. These tools are read-only. House rules take precedence over campaign homebrew, which takes precedence over the system library.
 
-Skills are Markdown files with `name`, `description`, optional `system`, and optional `tools` frontmatter. They are loaded in order from `_system/assistant/skills/`, `_local/assistant/skills/`, and `<campaign>/Assistant/skills/`; later files with the same name override earlier ones. Invalid files are skipped and reported together. Skill changes, renames, deletions, and active-campaign changes reload the list automatically.
+Skills are Markdown files with `name`, `description`, optional `system`, and optional `tools` frontmatter. Shared skills load in order from `_system/assistant/skills/` and `_local/assistant/skills/` for both roles. Campaign skills at `<campaign>/Assistant/skills/` load only for a GM; this prevents player runs from listing or loading GM instructions. Later files with the same name override earlier ones. Invalid files are skipped and reported together; the notice changes only when the invalid path set changes. Skill changes, renames, deletions, and active-campaign changes reload the list automatically.
 
 Free questions receive only skill names and descriptions. A model can load a full body with `load_skill`. The scene, NPC, passer-by, consequences, summary, and mechanics quick prompts include their matching skill body in their first request. For example:
 
