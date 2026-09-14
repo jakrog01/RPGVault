@@ -33,6 +33,7 @@ export default class TableTools extends Plugin {
   private skillReloadTimer?: number;
   private homeRefreshTimer?: number;
   private homeRefreshPaths = new Set<string>();
+  private homeRelevantPaths = new Set<string>();
 
   async onload(): Promise<void> {
     await this.loadStrings();
@@ -40,20 +41,23 @@ export default class TableTools extends Plugin {
     await this.loadScopePolicy();
     this.index = new AssistantIndex(this);
     this.index.start();
+    this.app.vault.getMarkdownFiles().forEach(file => this.homeChangeAffects(file, file.path));
     const vaultEvents = this.app.vault as typeof this.app.vault & { on: (event: string, callback: (file: TFile) => void) => unknown };
     for (const event of ["create", "modify", "delete"]) this.registerEvent(vaultEvents.on(event, file => {
       if (file instanceof TFile && SCOPE_PATHS.includes(file.path)) void this.loadScopePolicy();
       if (file instanceof TFile && this.isSkillPath(file.path)) void this.reloadSkills();
-      if (file instanceof TFile) this.scheduleHomeRefresh(file.path);
+      if (file instanceof TFile && this.homeChangeAffects(file, file.path)) this.scheduleHomeRefresh(file.path);
     }) as never);
     this.skills = await loadSkills(this);
     this.registerEvent(this.app.metadataCache.on("changed", file => {
       if (file instanceof TFile && this.isSkillPath(file.path)) void this.reloadSkills();
-      if (file instanceof TFile) this.scheduleHomeRefresh(file.path);
+      if (file instanceof TFile && this.homeChangeAffects(file, file.path)) this.scheduleHomeRefresh(file.path);
     }));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
       if (file instanceof TFile && (this.isSkillPath(file.path) || this.isSkillPath(oldPath))) void this.reloadSkills();
-      if (file instanceof TFile) this.scheduleHomeRefresh(file.path, oldPath);
+      if (file instanceof TFile && (this.homeChangeAffects(file, file.path) || this.homeChangeAffects(undefined, oldPath))) {
+        this.scheduleHomeRefresh(file.path, oldPath);
+      }
     }));
     const s = this.strings;
     this.registerView(COMBAT_VIEW, leaf => new CombatView(leaf, this));
@@ -102,6 +106,17 @@ export default class TableTools extends Plugin {
         void view.render();
       }
     }, 200) as unknown as number;
+  }
+
+  private homeChangeAffects(file: TFile | undefined, path: string): boolean {
+    const shipped = "_system/";
+    if (path === this.settings.activePointerPath || path.startsWith("_local/systems/") || path.startsWith(`${shipped}systems/`)) return true;
+    if (this.homeRelevantPaths.has(path)) return true;
+    const type = file ? this.app.metadataCache.getFileCache(file)?.frontmatter?.type : undefined;
+    const partyMembers = /^Parties\/[^/]+\/Party\.md$/.test(path);
+    if (!["campaign", "run", "party", "world-day", "state"].includes(String(type)) && !partyMembers) return false;
+    this.homeRelevantPaths.add(path);
+    return true;
   }
 
   async loadStrings(): Promise<void> {
@@ -198,7 +213,7 @@ export default class TableTools extends Plugin {
       pointer = await this.app.vault.create(this.settings.activePointerPath, `---\nrun: "[[${target}]]"\n---\n\n# Active Run\n`);
     } else await this.app.fileManager.processFrontMatter(pointer, fields => { fields.run = `[[${target}]]`; });
     this.reloadSkills();
-    void this.index.rebuild(true);
+    this.refreshViews();
     this.scheduleHomeRefresh(this.settings.activePointerPath);
   }
 
