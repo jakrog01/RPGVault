@@ -111,6 +111,7 @@ export default class TableTools extends Plugin {
   private homeChangeAffects(file: TFile | undefined, path: string): boolean {
     const shipped = "_system/";
     if (path === this.settings.activePointerPath || path.startsWith("_local/systems/") || path.startsWith(`${shipped}systems/`)) return true;
+    if ([...this.homeViews].some(view => view.hasRenderedPath(path))) return true;
     if (this.homeRelevantPaths.has(path)) return true;
     const type = file ? this.app.metadataCache.getFileCache(file)?.frontmatter?.type : undefined;
     const partyMembers = /^Parties\/[^/]+\/Party\.md$/.test(path);

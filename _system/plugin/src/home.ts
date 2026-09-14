@@ -28,6 +28,7 @@ export class HomeView extends ItemView {
   private readonly memberCounts = new Map<string, Promise<number>>();
   private readonly dayLines = new Map<string, Promise<string>>();
   private renderGeneration = 0;
+  private renderedPaths = new Set<string>();
   constructor(leaf: WorkspaceLeaf, readonly plugin: TableTools) { super(leaf); }
 
   getViewType(): string { return HOME_VIEW; }
@@ -45,6 +46,8 @@ export class HomeView extends ItemView {
     this.memberCounts.delete(path);
     this.dayLines.delete(path);
   }
+
+  hasRenderedPath(path: string): boolean { return this.renderedPaths.has(path); }
 
   async render(): Promise<void> {
     const generation = ++this.renderGeneration;
@@ -84,6 +87,12 @@ export class HomeView extends ItemView {
     const partySection = root.createDiv("tt-home-section");
     partySection.createEl("h3", { text: s.homeParties });
     for (const party of parties) this.renderParty(partySection, party, members.get(party.file.path) ?? 0);
+    this.renderedPaths = new Set([
+      ...campaigns.map(note => note.file.path),
+      ...runs.map(note => note.file.path),
+      ...parties.map(note => note.file.path),
+      ...(context ? [context.run.path, context.campaign.path, context.party.path, context.state.path, context.day?.path ?? ""] : []),
+    ].filter(Boolean));
   }
 
   private async model(): Promise<HomeModel> {
