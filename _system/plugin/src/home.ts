@@ -1,4 +1,4 @@
-import { ItemView, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, Modal, Notice, Setting, TFile, WorkspaceLeaf } from "obsidian";
 import type TableTools from "./main";
 
 export const HOME_VIEW = "tt-home";
@@ -40,6 +40,10 @@ export class HomeView extends ItemView {
     root.empty();
     root.addClass("tt-home");
     root.createEl("h2", { text: s.homeTitle });
+    const create = root.createDiv("tt-home-actions");
+    this.button(create, s.homeNewCampaign, () => new CampaignModal(this.app, this.plugin, this).open());
+    this.button(create, s.homeNewParty, () => new PartyModal(this.app, this.plugin, this).open());
+    this.button(create, s.homeNewRun, () => new RunModal(this.app, this.plugin, this).open());
 
     const notes = this.notes();
     const campaigns = notes.filter(note => note.fields.type === "campaign");
@@ -172,5 +176,168 @@ export class HomeView extends ItemView {
     const result = this.memberCount(file);
     this.memberCounts.set(file.path, result);
     return result;
+  }
+}
+
+abstract class HomeCreateModal extends Modal {
+  protected name = "";
+
+  constructor(app: HomeView["app"], protected readonly plugin: TableTools, protected readonly view: HomeView) { super(app); }
+
+  protected nameField(): void {
+    new Setting(this.contentEl).setName(this.plugin.strings.homeFieldName).addText(text => {
+      text.setValue(this.name).onChange(value => { this.name = value; });
+    });
+  }
+
+  protected submit(action: () => Promise<void>): void {
+    new Setting(this.contentEl).addButton(button => button.setButtonText(this.plugin.strings.homeCreate).setCta().onClick(() => void action()));
+  }
+
+  protected validName(): string | null {
+    const name = this.name.trim();
+    if (!name || /[\\/:*?"<>|#^\[\]]/.test(name)) {
+      new Notice(this.plugin.strings.homeInvalidName);
+      return null;
+    }
+    return name;
+  }
+
+  protected folderAvailable(folder: string): boolean {
+    if (this.app.vault.getAbstractFileByPath(folder)) return false;
+    return !this.app.vault.getMarkdownFiles().some(file => file.path.startsWith(`${folder}/`));
+  }
+
+  protected async createFolder(folder: string): Promise<void> {
+    const vault = this.app.vault as typeof this.app.vault & { createFolder?: (path: string) => Promise<void> };
+    await vault.createFolder?.(folder);
+  }
+
+  protected async createFromTemplate(kind: "campaign" | "party" | "run", folder: string, fileName: string, values: Record<string, string>): Promise<TFile> {
+    const content = this.mergeTemplate(await this.template(kind), folder, values);
+    await this.createFolder(folder);
+    return this.app.vault.create(`${folder}/${fileName}`, content);
+  }
+
+  private async template(kind: "campaign" | "party" | "run"): Promise<string> {
+    for (const root of ["_local/", "_system/"]) {
+      try { return await this.app.vault.adapter.read(`${root}templates/${kind}.md`); } catch { /* Try the shipped template. */ }
+    }
+    return "";
+  }
+
+  private mergeTemplate(template: string, folder: string, values: Record<string, string>): string {
+    const rendered = template.replace(/<%\s*tp\.file\.title\s*%>/g, this.name.trim())
+      .replace(/<%\s*tp\.file\.folder\(true\)\s*%>/g, folder).replace(/<%[\s\S]*?%>/g, "");
+    const match = rendered.match(/^---\n([\s\S]*?)\n---\n?/);
+    const fields = new Map<string, string>();
+    if (match) for (const line of match[1].split("\n")) {
+      const pair = line.match(/^([A-Za-z][\w-]*):\s*(.*)$/);
+      if (pair) fields.set(pair[1], pair[2]);
+    }
+    Object.entries(values).forEach(([key, value]) => fields.set(key, value));
+    const frontmatter = [...fields].map(([key, value]) => `${key}: ${value}`).join("\n");
+    const body = match ? rendered.slice(match[0].length) : rendered;
+    return `---\n${frontmatter}\n---\n\n${body}`;
+  }
+
+  protected async complete(file: TFile): Promise<void> {
+    this.close();
+    await this.app.workspace.openLinkText(file.path, "");
+    await this.view.render();
+  }
+}
+
+class CampaignModal extends HomeCreateModal {
+  private system = "generic";
+
+  async onOpen(): Promise<void> {
+    this.contentEl.createEl("h3", { text: this.plugin.strings.homeNewCampaign });
+    this.nameField();
+    const systems = await this.plugin.systemPackages();
+    if (!systems.some(system => system.id === this.system)) this.system = systems[0]?.id ?? "generic";
+    new Setting(this.contentEl).setName(this.plugin.strings.homeFieldSystem).addDropdown(dropdown => {
+      systems.forEach(system => dropdown.addOption(system.id, system.name));
+      dropdown.setValue(this.system).onChange(value => { this.system = value; });
+    });
+    this.submit(() => this.create());
+  }
+
+  private async create(): Promise<void> {
+    const name = this.validName();
+    if (!name) return;
+    const folder = `Campaigns/${name}`;
+    if (!this.folderAvailable(folder)) { new Notice(this.plugin.strings.homeExists); return; }
+    const file = await this.createFromTemplate("campaign", folder, "Campaign.md", { type: "campaign", system: this.system });
+    await this.complete(file);
+  }
+}
+
+class PartyModal extends HomeCreateModal {
+  onOpen(): void {
+    this.contentEl.createEl("h3", { text: this.plugin.strings.homeNewParty });
+    this.nameField();
+    this.submit(() => this.create());
+  }
+
+  private async create(): Promise<void> {
+    const name = this.validName();
+    if (!name) return;
+    const folder = `Parties/${name}`;
+    if (!this.folderAvailable(folder)) { new Notice(this.plugin.strings.homeExists); return; }
+    const file = await this.createFromTemplate("party", folder, "Party.md", { type: "party" });
+    await this.complete(file);
+  }
+}
+
+class RunModal extends HomeCreateModal {
+  private role = "gm";
+  private campaign = "";
+  private party = "";
+  private makeActive = true;
+
+  onOpen(): void {
+    const s = this.plugin.strings;
+    this.contentEl.createEl("h3", { text: s.homeNewRun });
+    this.nameField();
+    new Setting(this.contentEl).setName(s.homeFieldRole).addDropdown(dropdown => {
+      dropdown.addOption("gm", s.homeRoleGm).addOption("player", s.homeRolePlayer);
+      dropdown.setValue(this.role).onChange(value => { this.role = value; });
+    });
+    this.noteDropdown(s.homeFieldCampaign, "campaign", value => { this.campaign = value; });
+    this.noteDropdown(s.homeFieldParty, "party", value => { this.party = value; });
+    new Setting(this.contentEl).setName(s.homeFieldMakeActive).addToggle(toggle => {
+      toggle.setValue(this.makeActive).onChange(value => { this.makeActive = value; });
+    });
+    this.submit(() => this.create());
+  }
+
+  private noteDropdown(label: string, type: string, change: (value: string) => void): void {
+    new Setting(this.contentEl).setName(label).addDropdown(dropdown => {
+      dropdown.addOption("", "");
+      this.app.vault.getMarkdownFiles().filter(file => this.app.metadataCache.getFileCache(file)?.frontmatter?.type === type)
+        .forEach(file => dropdown.addOption(file.path, folderName(file)));
+      dropdown.setValue("").onChange(change);
+    });
+  }
+
+  private async create(): Promise<void> {
+    const name = this.validName();
+    if (!name) return;
+    if (!this.campaign || !this.party) { new Notice(this.plugin.strings.homeRunNeedsCampaignParty); return; }
+    const folder = `Runs/${name}`;
+    if (!this.folderAvailable(folder)) { new Notice(this.plugin.strings.homeExists); return; }
+    const campaign = linkPath(this.campaign);
+    const party = linkPath(this.party);
+    const run = await this.createFromTemplate("run", folder, "Run.md", {
+      type: "run",
+      role: this.role,
+      campaign: `"[[${campaign.replace(/\.md$/, "")}]]"`,
+      party: `"[[${party.replace(/\.md$/, "")}]]"`,
+    });
+    await this.app.vault.create(`${folder}/State.md`, `---\ntype: state\nrun: "[[${folder}/Run]]"\n---\n\n# State\n\n## What players know\n`);
+    await this.app.vault.create(`${folder}/World Day.md`, "---\ntype: world-day\n---\n\n# World Day\n");
+    if (this.makeActive) await this.plugin.setActiveRun(run.path);
+    await this.complete(run);
   }
 }

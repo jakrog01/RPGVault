@@ -213,6 +213,23 @@ export default class TableTools extends Plugin {
     return id;
   }
 
+  /** Lists installed system packages with local packages taking precedence. */
+  async systemPackages(): Promise<{ id: string; name: string }[]> {
+    const packages = new Map<string, string>();
+    const adapter = this.app.vault.adapter as typeof this.app.vault.adapter & { list?: (path: string) => Promise<{ folders: string[] }> };
+    for (const root of ["_system/", "_local/"]) {
+      try {
+        const listed = await adapter.list?.(`${root}systems`);
+        for (const folder of listed?.folders ?? []) {
+          const id = folder.split("/").at(-1) ?? "";
+          if (id) packages.set(id, await this.systemName(id));
+        }
+      } catch { /* A layer without a systems folder is optional. */ }
+    }
+    if (!packages.size) packages.set("generic", await this.systemName("generic"));
+    return [...packages].map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name));
+  }
+
   assistant(): AssistantView | undefined {
     return this.app.workspace.getLeavesOfType(ASSISTANT_VIEW)[0]?.view as AssistantView | undefined;
   }
