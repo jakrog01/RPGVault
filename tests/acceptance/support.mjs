@@ -67,6 +67,50 @@ export function createVault({ adapterFiles } = {}) {
     const value = env.adapterFiles.get(filePath)
     return value instanceof ArrayBuffer ? value.slice(0) : new TextEncoder().encode(String(value)).buffer
   }
+  // Minimal frontmatter reader for notes the plugin creates: flat `key: value` lines, optional quotes.
+  const parseFrontmatter = content => {
+    const match = String(content).match(/^---\n([\s\S]*?)\n---/)
+    if (!match) return null
+    const fields = {}
+    for (const line of match[1].split("\n")) {
+      const pair = line.match(/^([A-Za-z][\w-]*):\s*(.*)$/)
+      if (pair) fields[pair[1]] = pair[2].trim().replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1")
+    }
+    return fields
+  }
+  env.created = []
+  env.app.vault.create = async (filePath, content) => {
+    if (env.files.has(filePath)) throw new Error("File already exists.")
+    const file = env.addFile(filePath, content, parseFrontmatter(content))
+    env.created.push(filePath)
+    env.emit("create", file)
+    env.emit("changed", file, content, { frontmatter: env.files.get(filePath).frontmatter ?? undefined })
+    return file
+  }
+  env.folders = new Set()
+  env.app.vault.createFolder = async folderPath => { env.folders.add(folderPath) }
+  env.app.vault.adapter.list = async folderPath => {
+    const prefix = `${folderPath.replace(/\/$/, "")}/`
+    const all = [...env.adapterFiles.keys(), ...env.files.keys()].filter(key => key.startsWith(prefix))
+    const folders = [...new Set(all.map(key => key.slice(prefix.length)).filter(rest => rest.includes("/")).map(rest => prefix + rest.split("/")[0]))]
+    const filesInFolder = all.filter(key => !key.slice(prefix.length).includes("/"))
+    return { files: filesInFolder, folders }
+  }
+  env.app.fileManager = {
+    processFrontMatter: async (file, update) => {
+      const entry = env.files.get(file.path)
+      entry.frontmatter = entry.frontmatter ?? {}
+      update(entry.frontmatter)
+      env.emit("modify", entry.file)
+      env.emit("changed", entry.file, entry.content, { frontmatter: entry.frontmatter })
+    },
+  }
+  env.mainLeaves = []
+  env.workspace.getLeaf = () => {
+    const leaf = { app: env.app, type: null, view: null, async setViewState(state) { this.type = state.type; this.view = env.workspace.plugin.viewFactories.get(state.type)(this); env.leaves.push(this); await this.view.onOpen() } }
+    env.mainLeaves.push(leaf)
+    return leaf
+  }
   env.layout = []
   env.workspace.onLayoutReady = callback => { env.layout.push(callback) }
 
