@@ -1,29 +1,102 @@
 # Assistant retrieval
 
-The assistant indexes Markdown locally. Every query is filtered to the active run before it is ranked. A GM scope includes its run, campaign, party, shared system library, and campaign mechanics. A player scope includes only its run and party. Archive, shipped files, local overrides, application data, excluded notes, and player-hidden notes are never returned.
+Table Tools Assistant is a GM-oriented chat view that combines a Gemini response with local vault context, local search, and read-only tools.
+Open it from **Table Tools: Assistant**, **Open assistant**, a home-card action, or **Assistant: ask about the selected text**.
+The selected-text command requires an editor selection; otherwise it says **Select some text first.**
+Add a Google AI key in Table Tools settings before sending a question; without one the view says **Paste a Google AI key into the Table Tools settings to begin.**
 
-The shipped policy is `_system/assistant/scope.json`, and exactly matches the built-in fallback: GM access is `run`, `state`, `campaign`, `party`, `system`, `homebrew`, `house-rule`, and `note`; player access is `run`, `state`, `party`, and `note`. A local policy at `_local/assistant/scope.json` overrides it. Both use `{ "version": 1, "exclude": ["prefix/"], "gm": ["kind"], "player": ["kind"] }`; `exclude` is optional, and its vault-path prefixes supplement the built-in `Archive/`, `_system/`, `_local/`, `.obsidian/`, and `.rpgvault/` exclusions. Omitted kinds are excluded. The policy applies to every visible note, including rules outside the standard roots. Policy changes reload immediately. Invalid local policy falls back to the shipped policy.
+## Scope and roles
 
-Rules use hard campaign boundaries. Retrieval remains ordered by relevance; when rule chunks occupy scored positions, those positions are reordered as house rule, campaign homebrew, then active-system library. `lookup_rule` uses full precedence sorting. Rules tied to a campaign link are visible only to that campaign; rules without a campaign link must match the active system.
+The active run determines the role, campaign, party, system, and folders available to assistant search.
+A run whose frontmatter role is `player` has player scope; every other value has GM scope.
+GM scope includes run, state, campaign, party, active-system library, and campaign mechanics or homebrew.
+Player scope includes run, state, party, and ordinary scoped notes, but not campaign, system, or homebrew roots.
+Rule results are ordered house rule, campaign homebrew, then system library when they occupy retrieved positions.
+Campaign-linked rules are restricted to that campaign; system rules require the active campaign system.
 
-Pinned campaign, run, state, world day, combat, attached notes, and the active note are sent first and are never repeated in retrieval. The scope card and available skills follow. Relevant chunks are then added in score order within the total retrieval budget (estimated as one token per four characters) and cited as wikilinks. Large pinned notes provide an outline and a link to indexed material. The default character limit does not cut this budgeted context.
+The assistant excludes `Archive/`, `_system/`, `_local/`, `.obsidian/`, and `.rpgvault/` from indexing and scope.
+Notes with `assistant: exclude` frontmatter are also excluded.
+The shipped scope policy is `_system/assistant/scope.json`; a local `_local/assistant/scope.json` policy overrides it when valid.
+The policy shape is `{ "version": 1, "exclude": ["prefix/"], "gm": ["kind"], "player": ["kind"] }`, with optional `exclude` prefixes supplementing built-in exclusions.
+The shipped GM kinds are `run`, `state`, `campaign`, `party`, `system`, `homebrew`, `house-rule`, and `note`; player kinds are `run`, `state`, `party`, and `note`.
+Kinds omitted from the policy are excluded, and policy changes reload immediately.
+An invalid local policy falls back to the shipped policy and shows a notice.
 
-Every final answer has a Sources disclosure listing the retrieved notes and notes returned by tools. Select a source to open that note in Obsidian. Breadcrumb citations include the full heading path; headings inside fenced code blocks are not headings.
+## What a request sends
 
-The model can search and read scoped notes, find names, list notes, look up rules, inspect run or combat state, roll dice, and load a skill. These tools are read-only. House rules take precedence over campaign homebrew, which takes precedence over the system library.
+The top toggles control **Run**, **Today**, **Note**, **Combat**, and **Search** context.
+Run attaches the campaign, active run, and state notes; Today attaches the world-day note; Combat attaches a plain-English tracker summary.
+Note attaches the active Markdown note, and the paperclip can attach specific vault notes for the conversation.
+Search retrieves up to eight distinct scoped note paths after pinned context, within the retrieval-token budget.
+Pinned campaign, run, state, world day, combat, attached notes, and active note are not repeated in retrieval.
+The request also includes run role, campaign, system, party names, available skill names and descriptions, the selected quick-prompt skill when applicable, conversation history, and your question.
+Retrieved chunks carry wikilink citations and are budgeted at approximately one token per four characters.
+Large pinned notes retain frontmatter, headings, and an opening portion with an index pointer; context is capped by the configured character and token budgets.
+With the default 24,000-character limit and 6,000-token retrieval budget, the character cap does not shorten budgeted context.
+When you send, the configured Gemini model receives the assembled context, conversation, system prompt, question, and tool declarations.
+Use the toggles and attachments to avoid sending irrelevant notes.
 
-Skills are Markdown files with `name`, `description`, optional `system`, and optional `tools` frontmatter. Shared skills load in order from `_system/assistant/skills/` and `_local/assistant/skills/` for both roles. Campaign skills at `<campaign>/Assistant/skills/` load only for a GM; this prevents player runs from listing or loading GM instructions. Later files with the same name override earlier ones. Invalid files are skipped and reported together; the notice changes only when the invalid path set changes. Skill changes, renames, deletions, and active-campaign changes reload the list automatically.
+## Read-only tools
 
-Free questions receive only skill names and descriptions. A model can load a full body with `load_skill`. The scene, NPC, passer-by, consequences, summary, and mechanics quick prompts include their matching skill body in their first request. For example:
+The model can request these tools; each runs against the active scope and returns data to the model, not a vault write.
 
-```markdown
----
-name: tavern-scene
-description: Describe a tavern scene.
----
-Use three senses and offer one detail for each party member.
-```
+| Tool | What it returns |
+| --- | --- |
+| `search_vault` | Scoped lexical search results with citations, snippets, and scores. |
+| `read_note` | A scoped note or one matching heading, with cited content. |
+| `find_by_name` | Matching NPC, location, creature, or item titles, aliases, and citations. |
+| `list_notes` | Up to 100 scoped note paths, titles, and frontmatter filtered by type, status, or folder. |
+| `lookup_rule` | Up to eight matching house-rule, homebrew, or system rule results in precedence order. |
+| `get_run_state` | The current scope plus active run state and world-day text. |
+| `get_combat_state` | The current combat summary. |
+| `roll_dice` | The result of a dice expression. |
+| `load_skill` | A named skill body, or an unknown-skill error. |
 
-The lexical index is always local. Its cache is `.rpgvault/cache/assistant/` and can be rebuilt with the Assistant rebuild index command. The default embedding provider is none; no note text is sent to an embedding service by default.
+Tool traces are shown under **Tools used** in an assistant response.
+The configured maximum tool steps limits tool rounds; reaching it adds **Tool step limit reached.**
 
-Optional semantic search can be enabled in Table Tools settings. Ollama sends batches of at most 32 chunks to the configured local URL (the default is `http://127.0.0.1:11434` with `embeddinggemma`). Gemini uses `gemini-embedding-001` by default and sends note text to Google; select it only when that privacy trade-off is acceptable. Changing provider, model, or dimensions invalidates vectors without reading notes again. Vectors live in `.rpgvault/cache/assistant/vectors.bin` as compact little-endian Float32 data; the retrieval manifest holds only hashes and offsets. Removed or re-chunked notes are discarded on the next cache write. Failed embedding requests pause semantic work and show one notice for the whole outage, while lexical retrieval remains available; the next note-index change, settings apply, or successful query embedding resumes the queue automatically. A later failure is reported only after an embedding request has succeeded.
+## Skills and quick prompts
+
+Skills are Markdown files with `name` and `description` frontmatter, optional `system` and `tools`, and an instruction body.
+The six shipped skills are `consequences`, `npc-improvisation`, `passer-by`, `rules-adjudication`, `scene-description`, and `session-summary`.
+Add shared local skills in `_local/assistant/skills/`; a same-named local skill overrides the shipped version.
+GM-only campaign skills live at `<campaign>/Assistant/skills/` and are unavailable to player runs.
+Later matching names override earlier ones; invalid files are skipped and reported together.
+Skill changes, renames, deletions, and active-campaign changes reload the list automatically.
+Free questions receive skill names and descriptions; the model uses `load_skill` to receive a full skill body.
+
+Quick prompts are **Describe the scene**, **What does the NPC do?**, **Passer-by**, **Consequences**, **Summarise**, **Names**, and **Mechanics**.
+Scene, NPC, passer-by, consequences, summary, and mechanics load their matching shipped skill on the first request.
+Consequences and Mechanics place a partial prompt in the input for you to complete; the other shortcuts send immediately.
+Use **New conversation** to clear conversation history and attachments.
+
+## Responses and Sources
+
+Assistant output renders as Markdown and offers copy, insert into the active editor, and regenerate actions.
+Every model answer that has retrieved or tool-returned notes has a **Sources** disclosure listing their vault paths.
+Select a source path to open that note in Obsidian.
+Breadcrumb citations use the full heading path; headings inside fenced code blocks are not treated as headings.
+The assistant may warn about blocked responses, an invalid key, unavailable model, access denial, rate limits, or another provider error.
+
+## Local index and semantic search
+
+The lexical index is always local and indexes visible Markdown using the scope rules above.
+Its cache is `.rpgvault/cache/assistant/manifest.json`; vectors, when enabled, are `.rpgvault/cache/assistant/vectors.bin` Float32 data.
+The view status reports indexing and indexed note and chunk counts.
+Run **Assistant: rebuild index** to force a rebuild after substantial note or provider changes.
+
+`none` is the default embedding provider and keeps retrieval local; it sends no note text to an embedding provider.
+`ollama` sends batches of note chunks to the configured Ollama URL, which defaults to `http://127.0.0.1:11434`, using `embeddinggemma` by default.
+`gemini` sends note text to Google for embeddings with `gemini-embedding-001` by default; choose it only when that privacy trade-off is acceptable.
+Changing provider, model, URL, or dimensions discards stored vectors and queues new embeddings without rereading source notes.
+Removed or re-chunked notes lose their vectors on the next cache write.
+
+During an embedding outage, the plugin pauses embedding work and shows **Embeddings are unavailable; using local lexical search.** once for the outage.
+Lexical retrieval continues to work.
+A note-index change, provider settings apply, or a successful query embedding resumes pending embedding work; a later outage is reported again only after success.
+
+## Related pages
+
+Use [Table Tools settings](SETTINGS.md) to control model, context, tool, and embedding settings.
+Use [Table Tools at the table](TABLE-TOOLS.md) for combat state that may be attached to a request.
+Use [Customising Table Tools](CUSTOMISING.md) for localised strings and local plugin guidance.
