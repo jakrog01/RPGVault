@@ -16,6 +16,7 @@ All command examples use the CLI shipped with this vault.
 ## Working in the vault
 
 - [Table home](HOME.md) answers: how do I create campaigns, parties, runs, and choose the active run?
+- [Table Tools at the table](TABLE-TOOLS.md) answers: which ribbons, commands, combat controls, and tracker records do I use during play?
 - [Assistant retrieval](ASSISTANT.md) answers: which notes can the assistant search and how is local indexing handled?
 - [Customising Table Tools](CUSTOMISING.md) answers: how do I localise labels and keep my own plugins, themes, and snippets?
 - [Authoring systems](AUTHORING-SYSTEMS.md) answers: how do I describe note shapes without shipping published rules text?
