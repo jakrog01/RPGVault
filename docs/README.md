@@ -9,6 +9,7 @@ All command examples use the CLI shipped with this vault.
 
 - [Getting started](GETTING-STARTED.md) answers: how do I turn a clone into my first active game?
 - [Concepts](CONCEPTS.md) answers: which layer, content root, note, and state file owns this information?
+- [Architecture](ARCHITECTURE.md) answers: how do the shipped, local, content, system-package, and radar boundaries fit together?
 - [CLI reference](CLI.md) answers: what does each `rpgvault` command write, print, and require?
 - [Troubleshooting](TROUBLESHOOTING.md) answers: what does a `doctor` violation mean and how do I fix it?
 
