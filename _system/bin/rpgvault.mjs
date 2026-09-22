@@ -21,6 +21,16 @@ const hash = text => createHash('sha256').update(text).digest('hex')
 const managedPath = item => typeof item === 'string' ? item : item.path
 const managedKeys = item => typeof item === 'string' ? null : item.keys
 const managedMerge = item => typeof item === 'string' ? false : item.merge === true
+const readCommunityPluginList = async item => {
+  try {
+    const value = await readJson(item)
+    if (!Array.isArray(value)) return { ids: [], valid: false }
+    const ids = value.filter(id => typeof id === 'string')
+    return { ids, valid: ids.length === value.length }
+  } catch {
+    return { ids: [], valid: false }
+  }
+}
 
 const files = async (directory, includeDirectories = false) => {
   if (!(await exists(directory))) return []
@@ -43,8 +53,9 @@ const copyManagedObsidian = async () => {
     await mkdir(path.dirname(target), { recursive: true })
     if (managedMerge(item)) {
       const templateIds = await readJson(source)
-      const vaultIds = (await exists(target)) ? await readJson(target) : []
-      const mergedIds = [...vaultIds, ...templateIds].filter((id, index, ids) => ids.indexOf(id) === index)
+      const vault = (await exists(target)) ? await readCommunityPluginList(target) : { ids: [], valid: true }
+      if (!vault.valid) console.log('repaired .obsidian/community-plugins.json')
+      const mergedIds = [...vault.ids, ...templateIds].filter((id, index, ids) => ids.indexOf(id) === index)
       await writeJson(target, mergedIds)
       continue
     }
@@ -120,8 +131,12 @@ const doctor = async () => {
     }
     if (managedMerge(item)) {
       const templateIds = await readJson(source)
-      const vaultIds = await readJson(target)
-      const missing = templateIds.filter(id => !vaultIds.includes(id))
+      const vault = await readCommunityPluginList(target)
+      if (!vault.valid) {
+        failures.push(`invalid community plugin list: .obsidian/${relative}`)
+        continue
+      }
+      const missing = templateIds.filter(id => !vault.ids.includes(id))
       if (missing.length) failures.push(`missing template plugins in .obsidian/${relative}: ${missing.join(', ')}`)
       continue
     }
@@ -316,7 +331,9 @@ const update = async args => {
   await cp(path.join(root, '_system'), path.join(backup, '_system'), { recursive: true })
   await rm(path.join(root, '_system'), { recursive: true })
   await cp(path.join(from, '_system'), path.join(root, '_system'), { recursive: true })
-  await exec('node', [path.join(root, '_system', 'bin', 'rpgvault.mjs'), 'finalize-update'], { cwd: root })
+  const result = await exec('node', [path.join(root, '_system', 'bin', 'rpgvault.mjs'), 'finalize-update'], { cwd: root })
+  process.stdout.write(result.stdout)
+  process.stderr.write(result.stderr)
   if (extracted) await rm(extracted, { recursive: true })
 }
 
