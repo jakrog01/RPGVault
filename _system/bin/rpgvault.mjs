@@ -329,7 +329,7 @@ const copyImportedFiles = async (source, destination) => {
 const expandMapping = async (source, from, to) => {
   const segments = from.split('/').filter(Boolean)
   const walk = async (directory, index, captures) => {
-    if (index === segments.length) return [[directory, captures]]
+    if (index === segments.length) return (await stat(directory)).isDirectory() ? [[directory, captures]] : []
     const segment = segments[index]
     if (segment !== '*') {
       const next = path.join(directory, segment)
@@ -343,6 +343,14 @@ const expandMapping = async (source, from, to) => {
   return matches.map(([directory, captures]) => [directory, to.replace(/\*/g, () => captures.shift() ?? '')])
 }
 
+const wrappedFolderHint = async (source, entries) => {
+  const directories = (await readdir(source, { withFileTypes: true })).filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+  if (directories.length !== 1) return null
+  const candidate = path.join(source, directories[0].name)
+  for (const entry of entries) if ((await expandMapping(candidate, entry.from, entry.to)).length) return candidate
+  return null
+}
+
 const adopt = async args => {
   const [sourceArgument, ...options] = args
   const mapIndex = options.indexOf('--map')
@@ -354,16 +362,45 @@ const adopt = async args => {
   if (!(await exists(mappingPath))) throw new Error(`adopt map does not exist: ${mappingPath}`)
   const mapping = await readJson(mappingPath)
   if (!Array.isArray(mapping.folders)) throw new Error('adopt map requires a folders array')
-  await init()
-  const report = { folders: [], pluginKeys: [], calendar: false }
+  const missing = []
+  const skipped = []
+  const folders = []
   for (const entry of mapping.folders) {
     if (typeof entry?.from !== 'string' || typeof entry?.to !== 'string') throw new Error('each folder mapping requires from and to strings')
-    for (const [folder, targetRelative] of await expandMapping(source, entry.from, entry.to)) report.folders.push({ from: entry.from, to: targetRelative, files: await copyImportedFiles(folder, path.join(root, targetRelative)) })
+    const expansions = await expandMapping(source, entry.from, entry.to)
+    if (!expansions.length) (entry.optional === true ? skipped : missing).push(entry.from)
+    else folders.push({ entry, expansions })
   }
+  const pluginData = []
   for (const entry of mapping.pluginData ?? []) {
     if (typeof entry?.from !== 'string' || typeof entry?.to !== 'string' || !entry.keys || typeof entry.keys !== 'object') throw new Error('each plugin-data mapping requires from, to, and keys')
     const sourceData = path.join(source, entry.from)
-    if (!(await exists(sourceData))) continue
+    if (!(await exists(sourceData))) {
+      (entry.optional === true ? skipped : missing).push(entry.from)
+      continue
+    }
+    pluginData.push({ entry, sourceData })
+  }
+  let calendar = null
+  if (mapping.calendar) {
+    const entry = mapping.calendar
+    if (typeof entry.from !== 'string' || typeof entry.to !== 'string') throw new Error('calendar mapping requires from and to strings')
+    const sourceData = path.join(source, entry.from)
+    if (!(await exists(sourceData))) (entry.optional === true ? skipped : missing).push(entry.from)
+    else calendar = { entry, sourceData }
+  }
+  if (missing.length) {
+    const requiredFolders = mapping.folders.filter(entry => entry.optional !== true)
+    const noRequiredFoldersMatched = requiredFolders.length > 0 && requiredFolders.every(entry => !folders.some(folder => folder.entry === entry))
+    const hint = noRequiredFoldersMatched ? await wrappedFolderHint(source, requiredFolders) : null
+    throw new Error(`adopt map source${missing.length === 1 ? '' : 's'} missing: ${missing.join(', ')}${hint ? `; source may be wrapped in ${hint}` : ''}`)
+  }
+  await init()
+  const report = { folders: [], pluginKeys: [], calendar: false, skipped }
+  for (const { entry, expansions } of folders) {
+    for (const [folder, targetRelative] of expansions) report.folders.push({ from: entry.from, to: targetRelative, files: await copyImportedFiles(folder, path.join(root, targetRelative)) })
+  }
+  for (const { entry, sourceData } of pluginData) {
     const imported = await readJson(sourceData)
     const target = path.join(root, '.obsidian', 'plugins', entry.to, 'data.json')
     const current = (await exists(target)) ? await readJson(target) : {}
@@ -389,14 +426,11 @@ const adopt = async args => {
     await writeJson(target, current)
     report.pluginKeys.push({ plugin: entry.to, keys: names })
   }
-  if (mapping.calendar?.from && mapping.calendar?.to) {
-    const calendarSource = path.join(source, mapping.calendar.from)
-    if (await exists(calendarSource)) {
-      const calendarTarget = path.join(root, mapping.calendar.to)
-      await mkdir(path.dirname(calendarTarget), { recursive: true })
-      await cp(calendarSource, calendarTarget)
-      report.calendar = true
-    }
+  if (calendar) {
+    const calendarTarget = path.join(root, calendar.entry.to)
+    await mkdir(path.dirname(calendarTarget), { recursive: true })
+    await cp(calendar.sourceData, calendarTarget)
+    report.calendar = true
   }
   const state = await loadState()
   state.adoptedFrom = 'mapping'
