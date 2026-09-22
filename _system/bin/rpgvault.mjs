@@ -20,6 +20,7 @@ const rel = item => path.relative(root, item).split(path.sep).join('/')
 const hash = text => createHash('sha256').update(text).digest('hex')
 const managedPath = item => typeof item === 'string' ? item : item.path
 const managedKeys = item => typeof item === 'string' ? null : item.keys
+const managedMerge = item => typeof item === 'string' ? false : item.merge === true
 
 const files = async (directory, includeDirectories = false) => {
   if (!(await exists(directory))) return []
@@ -40,6 +41,13 @@ const copyManagedObsidian = async () => {
     const source = path.join(system, 'obsidian', relative)
     const target = path.join(root, '.obsidian', relative)
     await mkdir(path.dirname(target), { recursive: true })
+    if (managedMerge(item)) {
+      const templateIds = await readJson(source)
+      const vaultIds = (await exists(target)) ? await readJson(target) : []
+      const mergedIds = [...vaultIds, ...templateIds].filter((id, index, ids) => ids.indexOf(id) === index)
+      await writeJson(target, mergedIds)
+      continue
+    }
     const keys = managedKeys(item)
     if (!keys) await cp(source, target)
     else {
@@ -108,6 +116,13 @@ const doctor = async () => {
     const target = path.join(root, '.obsidian', relative)
     if (!(await exists(target))) {
       failures.push(`missing managed Obsidian artifact: .obsidian/${relative}`)
+      continue
+    }
+    if (managedMerge(item)) {
+      const templateIds = await readJson(source)
+      const vaultIds = await readJson(target)
+      const missing = templateIds.filter(id => !vaultIds.includes(id))
+      if (missing.length) failures.push(`missing template plugins in .obsidian/${relative}: ${missing.join(', ')}`)
       continue
     }
     const keys = managedKeys(item)

@@ -8,7 +8,7 @@
   "neverTouch": [".obsidian/workspace.json", ".obsidian/workspace-mobile.json", ".obsidian/plugins/table-tools/data.json", ".obsidian/plugins/calendarium/data.json"],
   "managedObsidian": [
     {"path":"app.json", "keys":["alwaysUpdateLinks", "attachmentFolderPath"]},
-    {"path":"community-plugins.json", "keys":null},
+    {"path":"community-plugins.json", "merge":true},
     {"path":"plugins/templater-obsidian/data.json", "keys":["templates_folder", "user_scripts_folder", "folder_templates", "file_templates"]},
     {"path":"plugins/templater-obsidian/manifest.json", "keys":["id", "name", "version", "minAppVersion", "description", "author", "isDesktopOnly"]},
     {"path":"plugins/templater-obsidian/main.js", "keys":null},
