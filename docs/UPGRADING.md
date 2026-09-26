@@ -1,26 +1,21 @@
 # Upgrading
 
-Migration IDs are immutable. Never edit or reuse an existing migration: an installed vault records completed IDs and will not run an edited migration again. Upgrade repairs belong in a new migration because the CLI already installed in a vault performs the initial replacement; only the newly installed CLI runs pending migrations.
+This page is for maintainers preparing a release. Owners who need to update a vault should follow [Keeping a vault up to date](UPDATING.md).
 
-Use the configured release host as the normal update path:
+## Cut a release
 
-```text
-node _system/bin/rpgvault.mjs update --latest
-```
+Finish the release changes, rebuild the shipped plugin, and run the repository test suite and `doctor` before cutting the release. Update the shipped version consistently with the release version, then create and push a `v*` tag such as `v1.2.0`.
 
-The updater checks for a newer release, downloads and validates its archive, then backs up `_system` and changed shipped files to `.rpgvault/backups/<timestamp>/`.
-It replaces `_system`, shipped root notes and documentation, mirrors shipped folders such as `docs/` and `.github/`, reconciles only manifest-managed Obsidian files, runs pending migrations, rebuilds the bundled plugin, and runs `doctor`.
-Edits to shipped root notes and documentation are retained in the backup; files placed inside a mirrored shipped folder but absent from the release are also removed and backed up.
+The release workflow runs `npm test`, packages the repository as `RPGVault.zip`, and creates the GitHub release from that tagged commit. The tag is the boundary: do not change the release contents after the tag has been cut.
 
-If the installed CLI predates the network release support introduced in prompt 27, first obtain a release archive and complete one offline `update --from` update below.
-That refreshes the shipped CLI; after it succeeds, the Table Tools update check and desktop install button can use the configured release host.
+## Keep migrations permanent
 
-A vault still running the 1.0.0 CLI performs its own upgrade, so its first hop must be the offline path below: `--check` and `--latest` do not exist in that CLI, and the wider shipped layer arrives on the following update. That first upgrade also prints nothing, because the 1.0.0 CLI discards what finalisation reports; run `doctor` afterwards to confirm the result.
+Migration IDs are immutable. Never edit or reuse an existing migration: an installed vault records completed IDs and will not run an edited migration again. Put a repair in a new migration. The CLI already installed in a vault performs the initial replacement, and only the newly installed CLI runs pending migrations.
 
-For an offline update, unpack a release and run:
+Review a migration against an already-updated vault as well as a fresh one. The update process records completed migration IDs in `.rpgvault/state.json`, so reuse would make a changed migration invisible to vaults that already recorded it.
 
-```text
-node _system/bin/rpgvault.mjs update --from /path/to/RPGVault-release
-```
+## What the tag triggers
 
-Add `--dry-run` to either path to preview migrations and every shipped-layer replacement without writing the vault. `_local` and content roots are never replaced. `.rpgvault/state.json` records the installed version and migrations, so it should be committed.
+Pushing a `v*` tag triggers the release workflow after its `package` job has passed `npm test`. It publishes the release archive and builds the documentation site for GitHub Pages. Repository settings must enable GitHub Pages with **Source: GitHub Actions** once before the first deployment.
+
+The released archive is the input to both online and offline owner updates. Keep it complete: it must contain the shipped `_system/` layer and its matching version so the updater can validate it.

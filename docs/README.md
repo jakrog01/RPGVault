@@ -22,7 +22,8 @@ All command examples use the CLI shipped with this vault.
 - [Customising Table Tools](CUSTOMISING.md) answers: how do I localise labels and keep my own plugins, themes, and snippets?
 - [Authoring systems](AUTHORING-SYSTEMS.md) answers: how do I describe note shapes without shipping published rules text?
 - [Adopting an existing vault](ADOPTING.md) answers: how do I import folders and selected plugin data through a map?
-- [Upgrading](UPGRADING.md) answers: how do releases, backups, and migrations update a vault?
+- [Keeping a vault up to date](UPDATING.md) answers: how do I find, install, and recover from an RPGVault update?
+- [Maintaining releases](UPGRADING.md) answers: how do maintainers cut a release and preserve migration history?
 
 ## Design records
 
@@ -39,6 +40,6 @@ Keep the CLI reference nearby when working from a terminal.
 Use Troubleshooting after every unexpected `doctor` result.
 The specialised pages explain one subsystem without replacing this shared model.
 The design records explain decisions rather than operational instructions.
-Updates preserve your content and local layer, but always read Upgrading before running one.
+Updates preserve your content and local layer; read Keeping a vault up to date before running one.
 Adoption is for an existing vault and requires a map file, so read it only when importing.
 The assistant page explains privacy and scope before enabling optional semantic search.

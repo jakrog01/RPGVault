@@ -81,8 +81,6 @@ See [Assistant retrieval](ASSISTANT.md) for how combat state can be attached to 
 
 ## RPGVault updates
 
-When the table home has a recorded release newer than this vault, it shows an update banner with both versions and the CLI command.
-On desktop Obsidian, its **Install update** button runs `node _system/bin/rpgvault.mjs update --latest` through the shipped CLI.
-The modal streams the CLI report, including migration and doctor output, and remains open if the update fails so the report can be read or copied.
-After a successful report it asks you to reload Obsidian; reloading is your decision, not an automatic plugin action.
-Phones show the banner and command but cannot install the update from Table Tools.
+When the table home has a recorded release newer than this vault, it shows an update banner with both versions and the CLI command. On desktop Obsidian, **Install update** runs the update through the shipped CLI; phones show the banner and command but cannot install it from Table Tools.
+
+Follow [Keeping a vault up to date](UPDATING.md) for the full procedure, report, backup, recovery, and offline options.
