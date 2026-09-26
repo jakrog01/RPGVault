@@ -210,8 +210,11 @@ export function createEnvironment() {
   const requestUrl = async options => { requests.push(options); return network.requestUrl(options) }
 
   const clipboard = []
+  // Obsidian reports the host it runs on; a phone has no desktop APIs and no Node.
+  const platform = { isDesktopApp: true, isMobile: false }
   const obsidian = {
     Plugin, ItemView, Modal, FuzzySuggestModal, PluginSettingTab, Setting, Notice, TFile, MarkdownView,
+    Platform: platform,
     MarkdownRenderer: { render: async (_app, markdown, element) => { element.appendText(markdown) } },
     requestUrl,
     parseYaml: text => JSON.parse(text),
@@ -232,7 +235,7 @@ export function createEnvironment() {
   Object.defineProperty(globalThis, "navigator", { value: { clipboard: { writeText: async text => { clipboard.push(text); record(text) } } }, configurable: true })
 
   return {
-    app, workspace, files, addFile, adapterFiles, appended, opened, leaves, modals, notices, rendered, requests, network, clipboard, storage, emit,
+    app, workspace, files, addFile, adapterFiles, appended, opened, leaves, modals, notices, rendered, requests, network, platform, clipboard, storage, emit,
     MockElement, TFile, MarkdownView, load, byLabel, byClass, byText, settingByName, buttonComponent, record,
   }
 }
