@@ -88,6 +88,63 @@ const refreshPlugin = async () => {
 
 const loadState = async () => (await exists(statePath)) ? readJson(statePath) : { installedVersion: null, appliedMigrations: [], installId: randomUUID(), adoptedFrom: null }
 
+const releaseSource = async () => {
+  const localPath = path.join(root, '_local', 'release.json')
+  let local = {}
+  if (await exists(localPath)) {
+    try {
+      local = await readJson(localPath)
+    } catch {
+      throw new Error('release check failed: _local/release.json is not valid JSON')
+    }
+    if (!local || Array.isArray(local) || typeof local !== 'object') throw new Error('release check failed: _local/release.json must be an object')
+  }
+  const source = { ...manifest.release }
+  for (const key of ['repo', 'asset', 'api']) if (typeof local[key] === 'string' && local[key]) source[key] = local[key]
+  if (process.env.RPGVAULT_RELEASE_API) source.api = process.env.RPGVAULT_RELEASE_API
+  return source
+}
+
+const compareVersions = (left, right) => {
+  const leftParts = left.split('.').map(part => Number(part))
+  const rightParts = right.split('.').map(part => Number(part))
+  const length = Math.max(leftParts.length, rightParts.length)
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0)
+    if (difference) return difference
+  }
+  return 0
+}
+
+const checkRelease = async record => {
+  const source = await releaseSource()
+  let response
+  try {
+    response = await fetch(`${source.api.replace(/\/$/, '')}/repos/${source.repo}/releases/latest`, {
+      headers: { accept: 'application/vnd.github+json' }
+    })
+  } catch {
+    throw new Error('release check failed: could not reach the release host')
+  }
+  if (!response.ok) throw new Error(`release check failed: host returned ${response.status}`)
+  let release
+  try {
+    release = await response.json()
+  } catch {
+    throw new Error('release check failed: host returned unreadable JSON')
+  }
+  if (!release || typeof release.tag_name !== 'string' || !release.tag_name.replace(/^v/, '')) {
+    throw new Error('release check failed: response has no release tag')
+  }
+  const latestVersion = release.tag_name.replace(/^v/, '')
+  if (record) {
+    const state = await loadState()
+    state.updateCheck = { checkedAt: new Date().toISOString(), latestVersion, repo: source.repo }
+    await writeJson(statePath, state)
+  }
+  return { source, release, latestVersion, newer: compareVersions(latestVersion, version) > 0 }
+}
+
 const init = async () => {
   for (const folder of manifest.folders) await mkdir(path.join(root, folder.path), { recursive: true })
   for (const contentRoot of manifest.contentRoots) await mkdir(path.join(root, contentRoot), { recursive: true })
@@ -309,6 +366,14 @@ const migrations = async dryRun => {
 
 const update = async args => {
   const dryRun = args.includes('--dry-run')
+  if (args.includes('--check')) {
+    const result = await checkRelease(true)
+    if (result.newer) {
+      console.log(`update available: ${result.latestVersion} (installed ${version})`)
+      console.log('run node _system/bin/rpgvault.mjs update --latest to install it')
+    } else console.log(`up to date (${version})`)
+    return
+  }
   const index = args.indexOf('--from')
   let from = index >= 0 ? path.resolve(args[index + 1]) : null
   if (!from) throw new Error('update requires --from <directory|zip>; network release lookup is intentionally not implicit')

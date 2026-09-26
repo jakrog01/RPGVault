@@ -34,6 +34,7 @@ Run it after setup, update, adoption, or any unexpected vault change.
 
 ```text
 node _system/bin/rpgvault.mjs update --from <directory-or-zip> [--dry-run]
+node _system/bin/rpgvault.mjs update --check
 ```
 
 `--from` is required and names a release directory or a `.zip` release containing `_system/`.
@@ -43,6 +44,13 @@ Success forwards migration reports and the final `doctor` output, including the 
 With `--dry-run`, it prints `would replace _system from <path>` and runs migrations in dry-run mode without replacing `_system/`.
 It fails when `--from` is absent, the source does not exist, or the source has no `_system` directory.
 Run it to install an offline release; see [Upgrading](UPGRADING.md) for release workflow.
+
+`--check` explicitly asks the configured release host for its latest release without downloading or replacing anything.
+When newer it prints `update available: <latest> (installed <installed>)` and `run node _system/bin/rpgvault.mjs update --latest to install it`.
+When current it prints `up to date (<installed>)`.
+On success it records the checked time, release version, and repository in `.rpgvault/state.json`.
+It fails when the host cannot be reached, rejects the request, returns unreadable JSON, or has no release tag.
+The release source starts with `_system/manifest.json`, accepts optional `repo`, `asset`, and `api` overrides in `_local/release.json`, then lets `RPGVAULT_RELEASE_API` override the API base.
 
 ## `demo install`
 
@@ -108,6 +116,7 @@ It fails if a migration, managed artifact refresh, plugin refresh, state write, 
 ## Flags at a glance
 
 `--from` belongs to `update` and supplies a directory or zip release source.
+`--check` belongs to `update` and reports whether the configured release host has a newer version.
 `--dry-run` belongs to `update` and previews migration work without replacing `_system/`.
 `--map` belongs to `adopt` and supplies the import mapping JSON file.
 No other CLI flags are accepted by the current command parser.

@@ -1,4 +1,5 @@
 {
+  "release": {"repo":"jakrog01/RPGVault", "asset":"RPGVault.zip", "api":"https://api.github.com"},
   "contentRoots": ["Campaigns", "Parties", "Runs", "Library", "Calendar", "Archive"],
   "ownedGlobs": ["_system/**", ".obsidian/**", ".rpgvault/state.json", "Home.md", "README.md", "CHANGELOG.md", "docs/**", ".github/**"],
   "contractualNames": ["Active.md", "Campaign.md", "Party.md", "Run.md", "State.md", "Dashboard.md", "Radar.md", "World Day.md"],
