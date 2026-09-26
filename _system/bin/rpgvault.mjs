@@ -124,6 +124,8 @@ const releaseTimeout = fallback => {
   return Number.isInteger(override) && override > 0 ? override : fallback
 }
 
+const releaseTimedOut = error => error?.name === 'TimeoutError' || error?.name === 'AbortError'
+
 const checkRelease = async record => {
   const source = await releaseSource()
   let response
@@ -133,14 +135,15 @@ const checkRelease = async record => {
       signal: AbortSignal.timeout(releaseTimeout(15000))
     })
   } catch (error) {
-    if (error.name === 'TimeoutError' || error.name === 'AbortError') throw new Error('release check timed out')
+    if (releaseTimedOut(error)) throw new Error('release check timed out')
     throw new Error('release check failed: could not reach the release host')
   }
   if (!response.ok) throw new Error(`release check failed: host returned ${response.status}`)
   let release
   try {
     release = await response.json()
-  } catch {
+  } catch (error) {
+    if (releaseTimedOut(error)) throw new Error('release check timed out')
     throw new Error('release check failed: host returned unreadable JSON')
   }
   if (!release || typeof release.tag_name !== 'string' || !release.tag_name.replace(/^v/, '')) {
@@ -411,13 +414,14 @@ const downloadReleaseArchive = async (url, asset) => {
       signal: AbortSignal.timeout(releaseTimeout(300000))
     })
   } catch (error) {
-    if (error.name === 'TimeoutError' || error.name === 'AbortError') throw new Error(`release download timed out: ${asset}`)
+    if (releaseTimedOut(error)) throw new Error(`release download timed out: ${asset}`)
     throw new Error(`release download failed: could not download ${asset}`)
   }
   if (!response.ok) throw new Error(`release download failed: host returned ${response.status}`)
   try {
     return Buffer.from(await response.arrayBuffer())
-  } catch {
+  } catch (error) {
+    if (releaseTimedOut(error)) throw new Error(`release download timed out: ${asset}`)
     throw new Error(`release download failed: could not read ${asset}`)
   }
 }
