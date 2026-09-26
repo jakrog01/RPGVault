@@ -16,4 +16,4 @@ The Table Tools plugin adds a combat tracker and a Gemini assistant; translate o
 
 Start with [the RPGVault manual](docs/README.md), published at [jakrog01.github.io/RPGVault](https://jakrog01.github.io/RPGVault/). It links the getting-started guide, concepts, CLI reference, troubleshooting catalogue, and the existing topic pages.
 
-See [the table home](docs/HOME.md), [architecture](docs/ARCHITECTURE.md), [assistant retrieval](docs/ASSISTANT.md), [customisation](docs/CUSTOMISING.md), [upgrading](docs/UPGRADING.md), and [adopting an existing vault](docs/ADOPTING.md).
+See [the table home](docs/HOME.md), [architecture](docs/ARCHITECTURE.md), [assistant retrieval](docs/ASSISTANT.md), [customisation](docs/CUSTOMISING.md), [keeping a vault up to date](docs/UPDATING.md), and [adopting an existing vault](docs/ADOPTING.md).

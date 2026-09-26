@@ -156,6 +156,6 @@ Update repairs malformed JSON, non-arrays, and non-string entries while preservi
 A stale plugin build is reported by doctor as `plugin build is stale`.
 Run `node _system/bin/rpgvault.mjs init` to refresh the bundle and `.rpgvault/plugin-build.json`.
 
-For update workflow and backups, read [Upgrading](UPGRADING.md).
+For the update procedure and backups, read [Keeping a vault up to date](UPDATING.md).
 For import-map failures, read [Adopting an existing vault](ADOPTING.md).
 For the complete command reference, read [CLI reference](CLI.md).

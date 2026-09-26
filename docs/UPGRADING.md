@@ -1,4 +1,4 @@
-# Upgrading
+# Maintaining releases
 
 This page is for maintainers preparing a release. Owners who need to update a vault should follow [Keeping a vault up to date](UPDATING.md).
 

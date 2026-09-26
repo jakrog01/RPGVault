@@ -1,4 +1,4 @@
-# ADR 0001 - release zip plus migrations
+# ADR 0001: release zip plus migrations
 
 ## Decision
 

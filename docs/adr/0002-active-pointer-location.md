@@ -1,4 +1,4 @@
-# ADR 0002 - active run pointer location
+# ADR 0002: active run pointer location
 
 ## Decision
 

@@ -49,7 +49,7 @@ If finalisation fails, update forwards its migration and doctor output, then rep
 It still exits non-zero; fix the reported issue and run `doctor`, or restore the named backup if that is the owner's decision.
 With `--dry-run`, it prints the `_system` and wider shipped-layer actions it would take, then runs migrations in dry-run mode without writing a backup or replacing files.
 It fails when `--from` is absent, the source does not exist, or the source has no `_system` directory.
-Run it to install an offline release; see [Upgrading](UPGRADING.md) for release workflow.
+Run it to install an offline release; see [Keeping a vault up to date](UPDATING.md) for the procedure and [Maintaining releases](UPGRADING.md) for how a release is cut.
 
 `--check` explicitly asks the configured release host for its latest release without downloading or replacing anything.
 When newer it prints `update available: <latest> (installed <installed>)` and `run node _system/bin/rpgvault.mjs update --latest to install it`.

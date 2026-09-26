@@ -19,8 +19,12 @@ const pages = async (directory = "docs") => {
   return found.sort()
 }
 
-/** `- Title: path.md` entries of the nav, in order, without needing a YAML parser. */
-const navEntries = config => [...config.matchAll(/^\s+-\s+([^:\n]+):\s*(\S+\.md)\s*$/gm)].map(match => ({ title: match[1].trim(), file: match[2].trim() }))
+/**
+ * `- Title: path.md` entries of the nav, in order, without needing a YAML parser. A title that
+ * contains a colon has to be quoted in YAML, so the documentation is never the thing that bends.
+ */
+const navEntries = config => [...config.matchAll(/^\s+-\s+(?:"([^"]+)"|'([^']+)'|([^:\n]+)):\s*(\S+\.md)\s*$/gm)]
+  .map(match => ({ title: (match[1] ?? match[2] ?? match[3]).trim(), file: match[4].trim() }))
 const setting = (config, key) => config.match(new RegExp(`^${key}:\\s*(.+)$`, "m"))?.[1].trim()
 const heading = body => body.split("\n").find(line => line.startsWith("# "))?.slice(2).trim() ?? ""
 const contentLines = body => body.split("\n").filter(line => line.trim()).length

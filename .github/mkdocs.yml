@@ -18,7 +18,7 @@ nav:
   - Authoring systems: AUTHORING-SYSTEMS.md
   - Adopting an Existing Vault: ADOPTING.md
   - Keeping a vault up to date: UPDATING.md
-  - Upgrading: UPGRADING.md
-  - ADR 0001 - release zip plus migrations: adr/0001-update-mechanism.md
-  - ADR 0002 - active run pointer location: adr/0002-active-pointer-location.md
-  - ADR 0003 - assistant retrieval: adr/0003-assistant-retrieval.md
+  - Maintaining releases: UPGRADING.md
+  - "ADR 0001: release zip plus migrations": adr/0001-update-mechanism.md
+  - "ADR 0002: active run pointer location": adr/0002-active-pointer-location.md
+  - "ADR 0003: assistant retrieval": adr/0003-assistant-retrieval.md
