@@ -27,12 +27,16 @@ const newer = (left, right) => {
 /** The files a fresh checkout of HEAD holds — exactly what the release workflow packages. */
 const tracked = (await exec("git", ["ls-tree", "-r", "--name-only", "HEAD"], { cwd: repository })).stdout.split("\n").filter(Boolean)
 
-test("the shipped version is a version, and newer than the newest release tag", async () => {
+test("the shipped version is a version, and agrees with the release tags", async () => {
   assert.match(version, /^\d+(\.\d+)*$/, `_system/VERSION is a version: ${version}`)
   const tags = (await exec("git", ["tag", "--sort=v:refname"], { cwd: repository })).stdout.split("\n").filter(Boolean)
   assert.ok(tags.length, "the repository has at least one release tag")
-  const previous = tags.at(-1).replace(/^v/, "")
-  assert.ok(newer(version, previous), `_system/VERSION ${version} is newer than the newest tag ${previous}`)
+  // On a tagged commit — which is what the release workflow builds — the two must be the same
+  // version. Elsewhere the shipped version may only ever run ahead of the newest tag.
+  const here = (await exec("git", ["tag", "--points-at", "HEAD"], { cwd: repository })).stdout.split("\n").filter(Boolean)
+  for (const tag of here) assert.equal(version, tag.replace(/^v/, ""), `the tag ${tag} on this commit names the shipped version`)
+  const newest = tags.at(-1).replace(/^v/, "")
+  assert.equal(newer(newest, version), false, `_system/VERSION ${version} is not older than the newest tag ${newest}`)
 })
 
 test("every file that names the version agrees with the shipped one", async () => {
