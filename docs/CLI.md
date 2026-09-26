@@ -50,14 +50,16 @@ Run it to install an offline release; see [Upgrading](UPGRADING.md) for release 
 When newer it prints `update available: <latest> (installed <installed>)` and `run node _system/bin/rpgvault.mjs update --latest to install it`.
 When current it prints `up to date (<installed>)`.
 On success it records the checked time, release version, and repository in `.rpgvault/state.json`.
-It fails when the host cannot be reached, rejects the request, returns unreadable JSON, or has no release tag.
+It fails when the release source is not configured, the host cannot be reached or times out, rejects the request, returns unreadable JSON, or has no numeric release tag.
+Set `RPGVAULT_RELEASE_TIMEOUT` to a positive integer number of milliseconds to replace the 15,000 ms lookup deadline and 300,000 ms download deadline.
+`--check` and `--from` are mutually exclusive.
 The release source starts with `_system/manifest.json`, accepts optional `repo`, `asset`, and `api` overrides in `_local/release.json`, then lets `RPGVAULT_RELEASE_API` override the API base.
 
 `--latest` runs the same explicit lookup, and if a newer release exists downloads its named asset with redirects enabled.
 It validates that the archive contains `_system/` and that `_system/VERSION` matches the release version before writing into the vault.
 The validated archive is retained as `.rpgvault/cache/RPGVault-<version>.zip`, then installed through the normal `--from` replacement path.
-With `--dry-run`, it fetches and validates the archive, prints `would replace _system from <path>`, and runs migrations in dry-run mode without replacing `_system/`.
-It refuses a release missing the expected asset, an unavailable download, an unreadable archive, a missing `_system/`, a version mismatch, or `--latest` together with `--from`.
+With `--dry-run`, it fetches and validates the archive in temporary storage, prints `would replace _system from <path>`, runs migrations in dry-run mode, and leaves no cache archive or other vault changes.
+It refuses a release missing the expected asset, an unavailable or timed-out download, an unreadable archive, a missing `_system/` or `_system/VERSION`, a version mismatch, or `--latest` together with `--from`.
 
 ## `demo install`
 

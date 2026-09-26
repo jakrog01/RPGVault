@@ -451,6 +451,7 @@ const update = async args => {
   const latest = args.includes('--latest')
   const index = args.indexOf('--from')
   if (latest && index >= 0) throw new Error('update accepts either --latest or --from, not both')
+  if (args.includes('--check') && index >= 0) throw new Error('update accepts either --check or --from, not both')
   if (args.includes('--check')) {
     const result = await checkRelease(true)
     if (result.newer) {
@@ -471,6 +472,17 @@ const update = async args => {
     }
     const archive = await downloadReleaseArchive(asset.browser_download_url, result.source.asset)
     await validateReleaseArchive(archive, result.latestVersion)
+    if (dryRun) {
+      const temporary = await mkdtemp(path.join(os.tmpdir(), 'rpgvault-preview-'))
+      const previewArchive = path.join(temporary, `RPGVault-${result.latestVersion}.zip`)
+      try {
+        await writeFile(previewArchive, archive)
+        await installUpdate(previewArchive, true)
+      } finally {
+        await rm(temporary, { recursive: true, force: true })
+      }
+      return
+    }
     const cache = path.join(root, '.rpgvault', 'cache')
     const cachedArchive = path.join(cache, `RPGVault-${result.latestVersion}.zip`)
     await mkdir(cache, { recursive: true })

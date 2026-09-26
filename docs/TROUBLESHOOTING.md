@@ -123,6 +123,21 @@ Check the path, then run `node _system/bin/rpgvault.mjs update --from <directory
 `update source has no _system directory: <path>` means the selected directory is not an unpacked RPGVault release.
 Point `--from` at the release root that contains `_system/`, rather than at its parent or an unrelated folder.
 
+`release source is not configured` means neither the shipped manifest nor `_local/release.json` provides both a release repository and API base.
+Restore the shipped release block or set the missing local override; `RPGVAULT_RELEASE_API` can replace only the API base.
+
+`release check timed out` or `release download timed out: <asset>` means the release host did not answer before its deadline.
+Check the host and connection, then retry; set `RPGVAULT_RELEASE_TIMEOUT` to a positive millisecond value only when a longer deadline is appropriate.
+
+`release check failed: invalid release version "<value>"` means the latest tag is not numeric segments separated by dots.
+Publish a tag such as `v1.2.3`, `2026.01`, or `1.0.0.1`, then retry the update.
+
+`release archive validation failed: archive has no _system/VERSION file` means the downloaded archive is not a complete RPGVault release.
+Publish a release archive with `_system/VERSION` matching its release tag; do not install that archive.
+
+`update accepts either --check or --from, not both` means a release check was given an offline source path.
+Run `update --check` alone, or use `update --from <directory-or-zip>` for an offline update.
+
 An unreadable `community-plugins.json` is reported by doctor as the invalid community plugin list violation above.
 Update repairs malformed JSON, non-arrays, and non-string entries while preserving valid local plugin ids.
 
