@@ -1,6 +1,6 @@
 # Table Tools settings
 
-Open Obsidian settings, choose **Table Tools**, and edit the three sections below.
+Open Obsidian settings, choose **Table Tools**, and edit the sections below.
 Values are stored in the Table Tools plugin `data.json` as the keys shown in code.
 An empty default means the stored default is an empty string, not a missing value.
 The assistant request itself uses Google Gemini when an API key is configured; attached and selected context is sent to Google for that request.
@@ -33,6 +33,11 @@ Optional semantic search has separate provider settings and privacy choices belo
 
 The **API key**, Model, and assistant request flow use Google Gemini when you send a question.
 `embeddingProvider: none` sends no note text to an embedding provider; `ollama` sends it to the configured Ollama URL; `gemini` sends it to Google.
+
+## Updates
+
+- **Check for updates** — a button, not a stored setting. It asks the release host named in `_system/manifest.json` (or `_local/release.json`) whether a newer RPGVault exists, records the answer in `.rpgvault/state.json`, and downloads nothing.
+- **Check once a day** — `checkForUpdatesOnStart`; default: `false`. Asks at most once every 24 hours after Obsidian restores the layout, says so only when a newer release exists, and stays silent when the host cannot be reached.
 
 ## Table home
 

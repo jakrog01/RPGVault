@@ -67,7 +67,7 @@ export async function runScenario({ override } = {}) {
   for (const name of [s.settingsAssistantHeading, s.settingsApiKey, s.settingsModel, s.settingsTemperature, s.settingsSystemPrompt, s.settingsContextLimit,
     s.settingsActivePointer, s.settingsCampaignOverride, s.settingsWorldDayOverride, s.settingsCombatHeading, s.settingsBestiaryOverride,
     s.settingsPartyOverride, s.settingsHomeHeading, s.settingsOpenHomeOnStartup, s.settingsAverageHitPoints, s.settingsGroupInitiative,
-    s.settingsAttackBonusPhrases]) assert.ok(settingByName(settingsEl, name), `setting ${name}`)
+    s.settingsAttackBonusPhrases, s.settingsUpdateHeading, s.settingsCheckForUpdates, s.settingsCheckOnStart]) assert.ok(settingByName(settingsEl, name), `setting ${name}`)
   await buttonComponent(settingsEl, s.settingsFetchModels).click()
   assert.ok(notices.includes(s.settingsNeedApiKey))
   settingByName(settingsEl, s.settingsApiKey).components[0].change(" AIzaTEST ")
@@ -87,6 +87,24 @@ export async function runScenario({ override } = {}) {
   env.network.requestUrl = async () => ({ status: 403, json: { error: { message: "denied" } } })
   await buttonComponent(settingsEl, s.settingsFetchModels).click()
   assert.ok(notices.includes(s.errorForbidden))
+  // The update check: a newer release, an up-to-date vault, and a host that refuses.
+  env.adapterFiles.set("_system/manifest.json", JSON.stringify({ release: { repo: "owner/repo", asset: "RPGVault.zip", api: "https://example.invalid" } }))
+  env.adapterFiles.set("_system/VERSION", "1.0.0\n")
+  env.adapterFiles.set(".rpgvault/state.json", JSON.stringify({ installedVersion: "1.0.0", appliedMigrations: [], installId: "scenario", adoptedFrom: null }))
+  env.network.requestUrl = async () => ({ status: 200, json: { tag_name: "v1.1.0" } })
+  await buttonComponent(settingsEl, s.settingsCheckForUpdates).click()
+  assert.ok(notices.includes(fill(s.settingsUpdateAvailable, { version: "1.1.0", installed: "1.0.0" })), "a newer release is announced")
+  assert.equal(JSON.parse(env.adapterFiles.get(".rpgvault/state.json")).updateCheck.latestVersion, "1.1.0", "the check is recorded")
+  env.network.requestUrl = async () => ({ status: 200, json: { tag_name: "v1.0.0" } })
+  await buttonComponent(settingsEl, s.settingsCheckForUpdates).click()
+  assert.ok(notices.includes(fill(s.settingsUpdateCurrent, { installed: "1.0.0" })), "an up-to-date vault is told so")
+  env.network.requestUrl = async () => ({ status: 503, json: {} })
+  await buttonComponent(settingsEl, s.settingsCheckForUpdates).click()
+  assert.ok(notices.some(notice => notice.startsWith(fill(s.settingsUpdateFailed, { reason: "" }).trim().slice(0, 12))), `a refused check is reported: ${notices.at(-1)}`)
+  settingByName(settingsEl, s.settingsCheckOnStart).components[0].change(true)
+  assert.equal(plugin.settings.checkForUpdatesOnStart, true, "the startup check can be switched on")
+  settingByName(settingsEl, s.settingsCheckOnStart).components[0].change(false)
+
   settingByName(settingsEl, s.settingsTemperature).components[0].change(0.3)
   settingByName(settingsEl, s.settingsContextLimit).components[0].change("abc")
   settingByName(settingsEl, s.settingsAverageHitPoints).components[0].change(true)

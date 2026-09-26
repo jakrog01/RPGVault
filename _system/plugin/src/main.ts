@@ -8,6 +8,7 @@ import { AssistantIndex } from "./indexer";
 import { Skill, loadSkills } from "./tools";
 import { assistantLayerPaths, defaultScopePolicy } from "./scope";
 import { HomeView, HOME_VIEW } from "./home";
+import { checkLatestRelease, checkedRecently, ReleaseCheck } from "./update";
 
 interface PluginData { settings: Settings; combat: Combat; encounterSets: EncounterSet[] }
 export interface RunContext { run: TFile; campaign: TFile; party: TFile; state: TFile; day: TFile | null }
@@ -89,6 +90,7 @@ export default class TableTools extends Plugin {
     const workspace = this.app.workspace as typeof this.app.workspace & { onLayoutReady?: (callback: () => void) => void };
     workspace.onLayoutReady?.(() => {
       if (this.settings.openHomeOnStartup && !this.app.workspace.getLeavesOfType(HOME_VIEW).length) void this.openHome();
+      void this.checkForUpdatesOnStart();
     });
   }
 
@@ -180,6 +182,20 @@ export default class TableTools extends Plugin {
   async applyEmbeddingSettings(): Promise<void> {
     await this.index.applyEmbeddingSettings();
     await this.save();
+  }
+
+  async checkForUpdates(): Promise<ReleaseCheck> {
+    return checkLatestRelease(this.app.vault.adapter);
+  }
+
+  /** The opt-in startup check: at most once a day, and silent when it fails or finds nothing new. */
+  private async checkForUpdatesOnStart(): Promise<void> {
+    if (!this.settings.checkForUpdatesOnStart) return;
+    if (await checkedRecently(this.app.vault.adapter, 24 * 60 * 60 * 1000)) return;
+    try {
+      const result = await this.checkForUpdates();
+      if (result.newer) new Notice(format(this.strings.settingsUpdateAvailable, { version: result.latestVersion, installed: result.installedVersion }));
+    } catch { /* A startup check never interrupts the table. */ }
   }
 
   refreshViews(): void {
@@ -362,6 +378,21 @@ class TableToolsSettingTab extends PluginSettingTab {
     path(s.settingsActivePointer, "activePointerPath");
     path(s.settingsCampaignOverride, "campaignPath", s.settingsUseCurrentRun);
     path(s.settingsWorldDayOverride, "worldDayPath", s.settingsUseCurrentRun);
+
+    new Setting(containerEl).setName(s.settingsUpdateHeading).setHeading();
+    new Setting(containerEl).setName(s.settingsCheckForUpdates).setDesc(s.settingsCheckForUpdatesDescription)
+      .addButton(button => button.setButtonText(s.settingsCheckForUpdates).onClick(async () => {
+        try {
+          const result = await this.plugin.checkForUpdates();
+          new Notice(result.newer
+            ? format(s.settingsUpdateAvailable, { version: result.latestVersion, installed: result.installedVersion })
+            : format(s.settingsUpdateCurrent, { installed: result.installedVersion }));
+        } catch (error) {
+          new Notice(format(s.settingsUpdateFailed, { reason: error instanceof Error ? error.message : String(error) }));
+        }
+      }));
+    new Setting(containerEl).setName(s.settingsCheckOnStart).setDesc(s.settingsCheckOnStartDescription)
+      .addToggle(toggle => toggle.setValue(settings.checkForUpdatesOnStart).onChange(value => { settings.checkForUpdatesOnStart = value; save(); }));
 
     new Setting(containerEl).setName(s.settingsHomeHeading).setHeading();
     new Setting(containerEl).setName(s.settingsOpenHomeOnStartup).setDesc(s.settingsOpenHomeOnStartupDescription)

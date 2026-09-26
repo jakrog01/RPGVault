@@ -135,6 +135,8 @@ export interface Settings {
   embeddingDimensions: number;
   /** Open the table home after Obsidian has finished restoring its layout. */
   openHomeOnStartup: boolean;
+  /** Ask the release host once a day, after the layout is ready, whether a newer RPGVault exists. */
+  checkForUpdatesOnStart: boolean;
 }
 
 export const DEFAULTS: Settings = {
@@ -173,4 +175,5 @@ Rules:
   geminiEmbeddingModel: "gemini-embedding-001",
   embeddingDimensions: 768,
   openHomeOnStartup: true,
+  checkForUpdatesOnStart: false,
 };
