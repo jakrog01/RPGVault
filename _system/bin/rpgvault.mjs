@@ -397,6 +397,83 @@ const migrations = async dryRun => {
   }
 }
 
+const sameFile = async (left, right) => {
+  if (!(await exists(right))) return false
+  return (await readFile(left)).equals(await readFile(right))
+}
+
+const backupUpdateItem = async (item, backup) => {
+  if (!(await exists(item))) return
+  await mkdir(path.dirname(backup), { recursive: true })
+  await cp(item, backup, { recursive: true, force: true })
+}
+
+const pruneEmptyDirectories = async directory => {
+  if (!(await exists(directory))) return
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.isDirectory()) await pruneEmptyDirectories(path.join(directory, entry.name))
+  }
+  if ((await readdir(directory)).length === 0) await rm(directory, { recursive: true })
+}
+
+const updateReport = (dryRun, entry, written, removed, backup) => {
+  const action = dryRun ? 'would replace' : 'replaced'
+  const destination = entry.endsWith('/**') ? entry.slice(0, -3) : entry
+  const suffix = dryRun ? '' : `, backup ${rel(backup)}`
+  console.log(`${action} ${destination} (${written} written, ${removed} removed)${suffix}`)
+}
+
+const updateFileReport = (dryRun, action, item) => {
+  const prefix = dryRun ? `would ${action}` : action
+  console.log(`${prefix} file: ${item}`)
+}
+
+const replaceShippedLayer = async (from, backup, dryRun) => {
+  for (const entry of manifest.replaceOnUpdate ?? []) {
+    const folder = entry.endsWith('/**')
+    const relative = folder ? entry.slice(0, -3) : entry
+    const source = path.join(from, relative)
+    const target = path.join(root, relative)
+    if (!(await exists(source))) {
+      console.log(`kept ${relative}: the release provides none`)
+      continue
+    }
+    if (!folder) {
+      const written = (await sameFile(source, target)) ? [] : [relative]
+      if (!dryRun && written.length) {
+        await backupUpdateItem(target, path.join(backup, relative))
+        await mkdir(path.dirname(target), { recursive: true })
+        await cp(source, target, { force: true })
+      }
+      updateReport(dryRun, entry, written.length, 0, backup)
+      for (const item of written) updateFileReport(dryRun, 'replaced', item)
+      continue
+    }
+    const sourceFiles = await files(source)
+    const targetFiles = await files(target)
+    const sourceRelative = new Set(sourceFiles.map(item => rel(path.join(root, path.relative(from, item)))))
+    const written = []
+    for (const item of sourceFiles) {
+      const itemRelative = path.relative(from, item).split(path.sep).join('/')
+      if (!(await sameFile(item, path.join(root, itemRelative)))) written.push(itemRelative)
+    }
+    const removed = targetFiles.map(item => rel(item)).filter(item => !sourceRelative.has(item))
+    if (!dryRun && (written.length || removed.length)) {
+      await backupUpdateItem(target, path.join(backup, relative))
+      for (const itemRelative of written) {
+        const item = path.join(target, path.relative(relative, itemRelative))
+        await mkdir(path.dirname(item), { recursive: true })
+        await cp(path.join(from, itemRelative), item, { force: true })
+      }
+      for (const itemRelative of removed) await rm(path.join(root, itemRelative))
+      await pruneEmptyDirectories(target)
+    }
+    updateReport(dryRun, entry, written.length, removed.length, backup)
+    for (const item of written) updateFileReport(dryRun, 'replaced', item)
+    for (const item of removed) updateFileReport(dryRun, 'removed', item)
+  }
+}
+
 const installUpdate = async (source, dryRun) => {
   let from = source
   if (!(await exists(from))) throw new Error(`update source does not exist: ${from}`)
@@ -409,6 +486,7 @@ const installUpdate = async (source, dryRun) => {
   if (!(await exists(path.join(from, '_system')))) throw new Error(`update source has no _system directory: ${from}`)
   if (dryRun) {
     console.log(`would replace _system from ${from}`)
+    await replaceShippedLayer(from, null, true)
     await migrations(true)
     if (extracted) await rm(extracted, { recursive: true })
     return
@@ -418,6 +496,7 @@ const installUpdate = async (source, dryRun) => {
   await cp(path.join(root, '_system'), path.join(backup, '_system'), { recursive: true })
   await rm(path.join(root, '_system'), { recursive: true })
   await cp(path.join(from, '_system'), path.join(root, '_system'), { recursive: true })
+  await replaceShippedLayer(from, backup, false)
   try {
     const result = await exec('node', [path.join(root, '_system', 'bin', 'rpgvault.mjs'), 'finalize-update'], { cwd: root })
     process.stdout.write(result.stdout)
