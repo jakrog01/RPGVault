@@ -1,9 +1,56 @@
 site_name: RPGVault manual
+site_description: The practical manual for an upgradeable tabletop RPG vault
 site_url: https://jakrog01.github.io/RPGVault/
 docs_dir: ../docs
 site_dir: ../.github/site
 theme:
   name: material
+  language: en
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.top
+    - navigation.path
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - search.share
+    - toc.follow
+    - content.code.copy
+  palette:
+    - scheme: slate
+      primary: deep purple
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light mode
+    - scheme: default
+      primary: deep purple
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to dark mode
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+plugins:
+  - search
 nav:
   - Getting started: GETTING-STARTED.md
   - RPGVault concepts: CONCEPTS.md
