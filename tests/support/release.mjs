@@ -71,7 +71,10 @@ export function zipArchive(entries) {
   return Buffer.concat([body, directory, end])
 }
 
-const skipped = item => item.includes(`${path.sep}.git`) || item.includes(`${path.sep}node_modules`) || item.includes(`${path.sep}backups`)
+// `.git` and `node_modules` never belong in a release or a clone, and neither do earlier backups.
+// Matching whole path segments keeps `.github` — a shipped folder these tests must carry.
+const skipped = item => item.split(path.sep).some((segment, index, segments) =>
+  segment === '.git' || segment === 'node_modules' || (segment === 'backups' && segments[index - 1] === '.rpgvault'))
 
 /** Every file under `directory` as zip entries, paths relative and slash-separated. */
 export async function archiveEntries(directory, prefix = "") {
