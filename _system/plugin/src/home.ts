@@ -1,6 +1,7 @@
 import { ItemView, Modal, Notice, Setting, TFile, WorkspaceLeaf } from "obsidian";
 import type TableTools from "./main";
 import { format } from "./strings";
+import { RecordedUpdate, recordedUpdate } from "./update";
 
 export const HOME_VIEW = "tt-home";
 
@@ -17,6 +18,7 @@ interface HomeModel {
   worldDay: string;
   systems: Map<string, string>;
   members: Map<string, number>;
+  update: RecordedUpdate | null;
 }
 
 const folderName = (file: TFile): string => file.parent?.path.split("/").at(-1) ?? file.basename;
@@ -58,6 +60,7 @@ export class HomeView extends ItemView {
     root.empty();
     root.addClass("tt-home");
     root.createEl("h2", { text: s.homeTitle });
+    if (model.update) this.renderUpdate(root, model.update);
     const create = root.createDiv("tt-home-actions");
     this.button(create, s.homeNewCampaign, () => new CampaignModal(this.app, this.plugin, this).open());
     this.button(create, s.homeNewParty, () => new PartyModal(this.app, this.plugin, this).open());
@@ -106,7 +109,14 @@ export class HomeView extends ItemView {
     const entries = await Promise.all(systemNotes.map(async note => [note.file.path, await this.systemName(note.fields.system)] as const));
     const memberEntries = await Promise.all(parties.map(async party => [party.file.path, await this.memberCountFor(party.file)] as const));
     const worldDay = context?.day ? await this.dayLine(context.day) : "";
-    return { campaigns, runs, parties, context, worldDay, systems: new Map(entries), members: new Map(memberEntries) };
+    const update = await recordedUpdate(this.app.vault.adapter);
+    return { campaigns, runs, parties, context, worldDay, systems: new Map(entries), members: new Map(memberEntries), update };
+  }
+
+  private renderUpdate(root: HTMLElement, update: RecordedUpdate): void {
+    const banner = root.createDiv("tt-home-update");
+    banner.createDiv({ text: format(this.plugin.strings.homeUpdateAvailable, { version: update.latestVersion, installed: update.installedVersion }) });
+    banner.createEl("code", { text: "node _system/bin/rpgvault.mjs update --latest" });
   }
 
   private notes(): NoteSummary[] {

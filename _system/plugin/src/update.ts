@@ -7,6 +7,7 @@ interface VaultAdapter {
 
 export interface ReleaseSource { repo: string; asset: string; api: string }
 export interface ReleaseCheck { source: ReleaseSource; latestVersion: string; installedVersion: string; newer: boolean }
+export interface RecordedUpdate { latestVersion: string; installedVersion: string }
 
 /** The shipped layer is read-only at runtime; the manifest allows this prefix and nothing deeper. */
 const SHIPPED = "_system/";
@@ -58,6 +59,19 @@ export const checkLatestRelease = async (adapter: VaultAdapter): Promise<Release
   state.updateCheck = { checkedAt: new Date().toISOString(), latestVersion, repo: source.repo };
   await adapter.write(STATE, `${JSON.stringify(state, null, 2)}\n`);
   return { source, latestVersion, installedVersion, newer: compareReleaseVersions(latestVersion, installedVersion) > 0 };
+};
+
+/** Reads a valid, newer recorded release without contacting the release host. */
+export const recordedUpdate = async (adapter: VaultAdapter): Promise<RecordedUpdate | null> => {
+  try {
+    const state = await readJson(adapter, STATE) as { updateCheck?: { latestVersion?: unknown } };
+    const latestVersion = releaseVersion(state.updateCheck?.latestVersion);
+    const installedVersion = releaseVersion((await adapter.read(`${SHIPPED}VERSION`)).trim());
+    if (!latestVersion || !installedVersion || compareReleaseVersions(latestVersion, installedVersion) <= 0) return null;
+    return { latestVersion, installedVersion };
+  } catch {
+    return null;
+  }
 };
 
 /** True when `.rpgvault/state.json` holds a check younger than `within` milliseconds. */

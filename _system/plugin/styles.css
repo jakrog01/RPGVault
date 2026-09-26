@@ -22,6 +22,8 @@
 .tt-home { padding: 14px; overflow-y: auto; color: var(--text-normal); font-size: var(--font-ui-small); }
 .tt-home h2 { margin: 0 0 12px; font-family: var(--font-text); }
 .tt-home h3 { margin: 0 0 8px; font-size: 1em; }
+.tt-home-update { margin: 0 0 12px; padding: 10px; border: 1px solid var(--interactive-accent); border-radius: 8px; background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary)); }
+.tt-home-update code { display: block; margin-top: 6px; overflow-wrap: anywhere; }
 .tt-home-section { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
 .tt-home-section > h3 { grid-column: 1 / -1; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 5px; }
 .tt-home-active, .tt-home-campaign, .tt-home-run, .tt-home-party { border: 1px solid var(--background-modifier-border); border-radius: 8px; background: var(--background-secondary); padding: 10px; }

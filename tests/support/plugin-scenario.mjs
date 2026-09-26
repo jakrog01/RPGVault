@@ -48,6 +48,8 @@ export async function runScenario({ override } = {}) {
   addFile("Library/Mechanics/dnd5e/Bestiary/Broken.md", "```statblock\nnot: [valid\n```", { type: "creature" })
   addFile("_system/templates/campaign.md", "template")
   env.adapterFiles.set(".obsidian/plugins/initiative-tracker/data.json", JSON.stringify({ players: [{ name: "Cora", ac: 13, hp: 18, modifier: 1, level: 2 }] }))
+  env.adapterFiles.set("_system/VERSION", "1.0.0\n")
+  env.adapterFiles.set(".rpgvault/state.json", JSON.stringify({ updateCheck: { latestVersion: "1.1.0" } }))
   if (override) addFile("_local/plugins/table-tools/strings.json", JSON.stringify(override))
   if (override) env.adapterFiles.set("_local/assistant/scope.json", "{")
 
@@ -595,9 +597,11 @@ export async function runScenario({ override } = {}) {
   for (const ribbon of plugin.ribbons) await ribbon.callback()
   await command(s.commandOpenHome).callback()
   const home = env.leaves.find(leaf => leaf.type === "tt-home").view
+  env.adapterFiles.set(".rpgvault/state.json", JSON.stringify({ updateCheck: { latestVersion: "1.1.0" } }))
   addFile("Runs/Player/Run.md", "", { type: "run", role: "player", campaign: "[[Campaigns/Glass/Campaign]]", party: "[[Parties/Watch/Party]]" })
   addFile("Runs/Loose/Run.md", "", { type: "run", role: "gm", party: "[[Parties/Watch/Party]]" })
   await home.render()
+  assert.ok(home.contentEl.textContent.includes(fill(s.homeUpdateAvailable, { version: "1.1.0", installed: "1.0.0" })))
   for (const filePath of ["Runs/Harbor/Run.md", "Runs/Player/Run.md", "Runs/Loose/Run.md", "Campaigns/Glass/Campaign.md", "Parties/Watch/Party.md"]) env.files.delete(filePath)
   await home.render()
   addFile("Runs/Harbor/Run.md", "# Harbor run", { type: "run", campaign: "[[Campaigns/Glass/Campaign]]", party: "[[Parties/Watch/Party]]" })

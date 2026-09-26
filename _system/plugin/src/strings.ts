@@ -48,6 +48,7 @@ export const englishStrings = {
   homeInvalidName: "Enter a valid name.",
   homeExists: "That folder already contains a note.",
   homeRunNeedsCampaignParty: "Choose both a campaign and a party for the run.",
+  homeUpdateAvailable: "RPGVault {version} is available; this vault has {installed}.",
 
   // Settings
   settingsAssistantHeading: "Assistant (Google Gemini)",
