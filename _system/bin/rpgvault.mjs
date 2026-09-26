@@ -364,19 +364,8 @@ const migrations = async dryRun => {
   }
 }
 
-const update = async args => {
-  const dryRun = args.includes('--dry-run')
-  if (args.includes('--check')) {
-    const result = await checkRelease(true)
-    if (result.newer) {
-      console.log(`update available: ${result.latestVersion} (installed ${version})`)
-      console.log('run node _system/bin/rpgvault.mjs update --latest to install it')
-    } else console.log(`up to date (${version})`)
-    return
-  }
-  const index = args.indexOf('--from')
-  let from = index >= 0 ? path.resolve(args[index + 1]) : null
-  if (!from) throw new Error('update requires --from <directory|zip>; network release lookup is intentionally not implicit')
+const installUpdate = async (source, dryRun) => {
+  let from = source
   if (!(await exists(from))) throw new Error(`update source does not exist: ${from}`)
   let extracted = null
   if (from.endsWith('.zip')) {
@@ -400,6 +389,80 @@ const update = async args => {
   process.stdout.write(result.stdout)
   process.stderr.write(result.stderr)
   if (extracted) await rm(extracted, { recursive: true })
+}
+
+const downloadReleaseArchive = async (url, asset) => {
+  let response
+  try {
+    response = await fetch(url, { headers: { accept: 'application/octet-stream' }, redirect: 'follow' })
+  } catch {
+    throw new Error(`release download failed: could not download ${asset}`)
+  }
+  if (!response.ok) throw new Error(`release download failed: host returned ${response.status}`)
+  try {
+    return Buffer.from(await response.arrayBuffer())
+  } catch {
+    throw new Error(`release download failed: could not read ${asset}`)
+  }
+}
+
+const validateReleaseArchive = async (archive, latestVersion) => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'rpgvault-release-'))
+  const archivePath = path.join(temporary, 'release.zip')
+  const extracted = path.join(temporary, 'extracted')
+  try {
+    await writeFile(archivePath, archive)
+    try {
+      await exec('unzip', ['-q', archivePath, '-d', extracted])
+    } catch {
+      throw new Error('release archive validation failed: archive could not be extracted')
+    }
+    const shippedLayer = path.join(extracted, '_system')
+    if (!(await exists(shippedLayer))) throw new Error('release archive validation failed: archive has no _system directory')
+    const archiveVersion = (await readFile(path.join(shippedLayer, 'VERSION'), 'utf8')).trim()
+    if (archiveVersion !== latestVersion) {
+      throw new Error(`release archive validation failed: release ${latestVersion} contains _system version ${archiveVersion}`)
+    }
+  } finally {
+    await rm(temporary, { recursive: true, force: true })
+  }
+}
+
+const update = async args => {
+  const dryRun = args.includes('--dry-run')
+  const latest = args.includes('--latest')
+  const index = args.indexOf('--from')
+  if (latest && index >= 0) throw new Error('update accepts either --latest or --from, not both')
+  if (args.includes('--check')) {
+    const result = await checkRelease(true)
+    if (result.newer) {
+      console.log(`update available: ${result.latestVersion} (installed ${version})`)
+      console.log('run node _system/bin/rpgvault.mjs update --latest to install it')
+    } else console.log(`up to date (${version})`)
+    return
+  }
+  if (latest) {
+    const result = await checkRelease(false)
+    if (!result.newer) {
+      console.log(`up to date (${version})`)
+      return
+    }
+    const asset = result.release.assets?.find(item => item?.name === result.source.asset)
+    if (!asset || typeof asset.browser_download_url !== 'string') {
+      throw new Error(`release download failed: release has no ${result.source.asset} asset`)
+    }
+    const archive = await downloadReleaseArchive(asset.browser_download_url, result.source.asset)
+    await validateReleaseArchive(archive, result.latestVersion)
+    const cache = path.join(root, '.rpgvault', 'cache')
+    const cachedArchive = path.join(cache, `RPGVault-${result.latestVersion}.zip`)
+    await mkdir(cache, { recursive: true })
+    await writeFile(cachedArchive, archive)
+    await installUpdate(cachedArchive, dryRun)
+    return
+  }
+  const from = index >= 0 ? path.resolve(args[index + 1]) : null
+  if (!from) throw new Error('update requires --from <directory|zip>; network release lookup is intentionally not implicit')
+  await installUpdate(from, dryRun)
 }
 
 const finalizeUpdate = async () => {
