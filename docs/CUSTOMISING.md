@@ -5,6 +5,8 @@ Table Tools uses English strings by default. To override selected labels locally
 Your vault may enable its own community plugins, themes, and snippets; updates keep them and their local files.
 Template community plugins must remain enabled, and `doctor` reports any required template plugin that is missing.
 
+Put owner notes in the content roots and private templates or scripts in `_local/`. Do not put owner material in `docs/`, `.github/`, `Home.md`, `README.md`, or `CHANGELOG.md`: these are shipped paths and updates replace or mirror them, saving prior copies only in the update backup.
+
 ```json
 {
   "combat": "Encounter",

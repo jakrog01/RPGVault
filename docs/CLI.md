@@ -39,12 +39,14 @@ node _system/bin/rpgvault.mjs update --latest [--dry-run]
 ```
 
 `--from` is required and names a release directory or a `.zip` release containing `_system/`.
-Without `--dry-run`, update copies the current `_system/` to `.rpgvault/backups/<timestamp>/`, replaces `_system/`, then runs `finalize-update`.
+Without `--dry-run`, update copies the current `_system/` to `.rpgvault/backups/<timestamp>/`, replaces `_system/`, then replaces shipped `Home.md`, `README.md`, `CHANGELOG.md`, `docs/`, and `.github/` entries that the release provides before it runs `finalize-update`.
+Shipped folders are mirrored, so files absent from the release are removed; every overwritten or removed item is saved in that backup first.
+The report gives one line for each shipped entry with written and removed counts, names changed or removed files, and says when a release provides no entry to replace.
 Finalisation runs migrations, reconciles managed Obsidian artifacts, refreshes the bundled plugin, writes installed version state, and runs `doctor`.
 Success forwards migration reports and the final `doctor` output, including the clean line.
 If finalisation fails, update forwards its migration and doctor output, then reports that `_system` was already replaced and names the backup directory.
 It still exits non-zero; fix the reported issue and run `doctor`, or restore the named backup if that is the owner's decision.
-With `--dry-run`, it prints `would replace _system from <path>` and runs migrations in dry-run mode without replacing `_system/`.
+With `--dry-run`, it prints the `_system` and wider shipped-layer actions it would take, then runs migrations in dry-run mode without writing a backup or replacing files.
 It fails when `--from` is absent, the source does not exist, or the source has no `_system` directory.
 Run it to install an offline release; see [Upgrading](UPGRADING.md) for release workflow.
 

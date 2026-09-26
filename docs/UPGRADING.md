@@ -8,7 +8,9 @@ Use the configured release host as the normal update path:
 node _system/bin/rpgvault.mjs update --latest
 ```
 
-The updater checks for a newer release, downloads and validates its archive, then backs up `_system` to `.rpgvault/backups/<timestamp>/`, replaces that layer, reconciles only manifest-managed Obsidian files, runs pending migrations, rebuilds the bundled plugin, and runs `doctor`.
+The updater checks for a newer release, downloads and validates its archive, then backs up `_system` and changed shipped files to `.rpgvault/backups/<timestamp>/`.
+It replaces `_system`, shipped root notes and documentation, mirrors shipped folders such as `docs/` and `.github/`, reconciles only manifest-managed Obsidian files, runs pending migrations, rebuilds the bundled plugin, and runs `doctor`.
+Edits to shipped root notes and documentation are retained in the backup; files placed inside a mirrored shipped folder but absent from the release are also removed and backed up.
 
 For an offline update, unpack a release and run:
 
@@ -16,4 +18,4 @@ For an offline update, unpack a release and run:
 node _system/bin/rpgvault.mjs update --from /path/to/RPGVault-release
 ```
 
-Add `--dry-run` to either path to preview migrations. `_local` and content roots are never replaced. `.rpgvault/state.json` records the installed version and migrations, so it should be committed.
+Add `--dry-run` to either path to preview migrations and every shipped-layer replacement without writing the vault. `_local` and content roots are never replaced. `.rpgvault/state.json` records the installed version and migrations, so it should be committed.
