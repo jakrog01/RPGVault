@@ -1,11 +1,26 @@
 # Architecture
 
-`_system` is owned by RPGVault and is replaced wholesale. Do not put user work there. `_local` mirrors `_system`; the single resolver checks `_local/<path>` first and then `_system/<path>`. This preserves custom templates, localised templates, and private scripts during updates.
+RPGVault separates shipped machinery from the material a table owns. `_system` is the shipped layer and is replaced by an update, so it is never a place for campaign work. `_local` mirrors paths in `_system`; the resolver tries `_local/<path>` before `_system/<path>`. A local template, string override, or private script therefore wins without changing a shipped file and survives later updates.
 
-The manifest declares four shipped-layer handlers: `_system/**` is replaced wholesale, `.obsidian/**` is selectively reconciled through managed artifacts, `.rpgvault/state.json` is written by the CLI, and `replaceOnUpdate` names shipped root files and folders mirrored from a release. Doctor requires every `ownedGlobs` entry to have exactly one handler.
+## Layers and update ownership
 
-Campaigns contain reusable world material. Parties contain rosters. Runs contain table-specific records. Library holds mechanics and assets, Calendar holds table-plugin data, and Archive is excluded from automation.
+The manifest's `ownedGlobs` gives each shipped path exactly one update handler. `doctor` rejects a missing or duplicate handler so an update cannot have ambiguous ownership.
 
-System packages describe note shapes and radar requirements. They never contain published rules text or statblocks.
+- `_system/**` is replaced wholesale.
+- `.obsidian/**` is selectively reconciled as managed Obsidian artifacts, while workspace files and plugin data listed as never-touch stay owned by the vault.
+- `.rpgvault/state.json` is written by the CLI to record installed state and migrations.
+- `replaceOnUpdate` mirrors the shipped root notes and folders: `Home.md`, `README.md`, `CHANGELOG.md`, `docs/**`, and `.github/**`.
 
-The GM radar checks campaign, party, run, and shared context. The player radar records claims with `about`, `what`, `from`, `session`, and `status`; it does not treat player prose as GM truth. Bulk reference folders remain searchable but are excluded from completeness checks. Contractual names such as `Run.md` and `World Day.md` may repeat and every generated reference to them is path-qualified.
+Mirroring means a released folder is made to match the release. Before an overwritten or removed shipped item is changed, the updater preserves it in the update backup. `_local` and the content roots are not in the shipped layer.
+
+## Content and packages
+
+`contentRoots` declares `Campaigns`, `Parties`, `Runs`, `Library`, `Calendar`, and `Archive`. Campaigns hold reusable world material, parties hold rosters, and runs hold table-specific records. Library holds mechanics and assets; Calendar holds table-plugin data; Archive is excluded from automation. `doctor` requires the declared roots, but they may be empty.
+
+System packages under `_system/systems/<id>/` describe supported note shapes and required frontmatter for a game system. They provide structure rather than published rulebook text or statblocks. Local experimentation belongs in `_local` until a package is ready to ship.
+
+## Radar and reference boundaries
+
+The GM radar checks campaign, party, run, and shared context. The player radar records claims with `about`, `what`, `from`, `session`, and `status`; it does not turn player prose into GM truth. The manifest's bulk reference folders remain searchable but are excluded from completeness checks.
+
+Contractual names such as `Run.md` and `World Day.md` may repeat, so generated references to them are path-qualified. This keeps links unambiguous while allowing each campaign or run to use the same familiar note names.
