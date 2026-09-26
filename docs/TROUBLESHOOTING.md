@@ -114,6 +114,9 @@ Fix: remove the placeholder and folder, or move the intended folder under the ap
 
 ## Common failures outside the doctor catalogue
 
+`owned glob has no update handler: <glob>`, `owned glob has multiple update handlers: <glob>`, or `replaceOnUpdate entry has no owned glob: <glob>` means the shipped-layer manifest does not give one update handler to every owned path.
+Restore the matching `ownedGlobs` and `replaceOnUpdate` declarations so root files and folder globs have exactly one handler, then run `doctor` again.
+
 `adopt map source missing: <from>` or `adopt map sources missing: <from>, <from>` means a required map source was not found before adoption wrote the target.
 Fix the map `from` value or source layout; when all required folders are inside one wrapper, use the absolute wrapped-folder hint printed with the error.
 

@@ -192,6 +192,16 @@ const contentFiles = async () => (await Promise.all(manifest.contentRoots.map(fo
 
 const doctor = async () => {
   const failures = []
+  const fixedUpdateHandlers = ['_system/**', '.obsidian/**', '.rpgvault/state.json']
+  const replacementHandlers = manifest.replaceOnUpdate ?? []
+  for (const owned of manifest.ownedGlobs) {
+    const handlers = [...fixedUpdateHandlers, ...replacementHandlers].filter(handler => handler === owned)
+    if (handlers.length === 0) failures.push(`owned glob has no update handler: ${owned}`)
+    if (handlers.length > 1) failures.push(`owned glob has multiple update handlers: ${owned}`)
+  }
+  for (const replacement of replacementHandlers) {
+    if (!manifest.ownedGlobs.includes(replacement)) failures.push(`replaceOnUpdate entry has no owned glob: ${replacement}`)
+  }
   for (const folder of manifest.contentRoots) if (!(await exists(path.join(root, folder)))) failures.push(`missing content root: ${folder}`)
   const allowedDirectories = new Set(['_system', '_local', '.obsidian', '.rpgvault', '.git', '.github', 'docs', 'tests', 'node_modules', '.trash', ...manifest.contentRoots])
   // A worktree or submodule checkout has a .git file instead of a directory.

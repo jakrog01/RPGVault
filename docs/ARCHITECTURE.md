@@ -2,6 +2,8 @@
 
 `_system` is owned by RPGVault and is replaced wholesale. Do not put user work there. `_local` mirrors `_system`; the single resolver checks `_local/<path>` first and then `_system/<path>`. This preserves custom templates, localised templates, and private scripts during updates.
 
+The manifest declares four shipped-layer handlers: `_system/**` is replaced wholesale, `.obsidian/**` is selectively reconciled through managed artifacts, `.rpgvault/state.json` is written by the CLI, and `replaceOnUpdate` names shipped root files and folders mirrored from a release. Doctor requires every `ownedGlobs` entry to have exactly one handler.
+
 Campaigns contain reusable world material. Parties contain rosters. Runs contain table-specific records. Library holds mechanics and assets, Calendar holds table-plugin data, and Archive is excluded from automation.
 
 System packages describe note shapes and radar requirements. They never contain published rules text or statblocks.
