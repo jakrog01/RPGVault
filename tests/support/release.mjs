@@ -146,9 +146,9 @@ export async function cloneVault(prefix) {
 }
 
 /** Run the vault's own CLI. Resolves with the exit code and both streams. */
-export function cli(vault, args, env = {}) {
+export function cli(vault, args, env = {}, timeout = 120000) {
   return new Promise(resolve => {
-    execFile("node", [path.join(vault, "_system/bin/rpgvault.mjs"), ...args], { cwd: vault, timeout: 120000, env: { ...process.env, ...env } }, (error, stdout, stderr) => {
+    execFile("node", [path.join(vault, "_system/bin/rpgvault.mjs"), ...args], { cwd: vault, timeout, env: { ...process.env, ...env } }, (error, stdout, stderr) => {
       resolve({ code: error ? (error.code ?? 1) : 0, stdout, stderr })
     })
   })
@@ -167,4 +167,18 @@ export async function snapshot(directory) {
   }
   await walk(directory)
   return lines.sort().join("\n")
+}
+
+/** A host that accepts the connection and never answers, for proving a request gives up. */
+export async function hangingHost() {
+  const sockets = []
+  const server = createServer(() => {})
+  server.on("connection", socket => sockets.push(socket))
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve))
+  const base = `http://127.0.0.1:${server.address().port}`
+  return {
+    base,
+    downloadUrl: `${base}/download/RPGVault.zip`,
+    close: () => new Promise(resolve => { for (const socket of sockets) socket.destroy(); server.close(resolve) }),
+  }
 }
