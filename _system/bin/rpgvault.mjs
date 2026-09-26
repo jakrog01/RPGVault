@@ -102,6 +102,9 @@ const releaseSource = async () => {
   const source = { ...manifest.release }
   for (const key of ['repo', 'asset', 'api']) if (typeof local[key] === 'string' && local[key]) source[key] = local[key]
   if (process.env.RPGVAULT_RELEASE_API) source.api = process.env.RPGVAULT_RELEASE_API
+  if (typeof source.repo !== 'string' || !source.repo || typeof source.api !== 'string' || !source.api) {
+    throw new Error('release source is not configured')
+  }
   return source
 }
 
@@ -144,6 +147,7 @@ const checkRelease = async record => {
     throw new Error('release check failed: response has no release tag')
   }
   const latestVersion = release.tag_name.replace(/^v/, '')
+  if (!/^\d+(\.\d+)*$/.test(latestVersion)) throw new Error(`release check failed: invalid release version "${latestVersion}"`)
   if (record) {
     const state = await loadState()
     state.updateCheck = { checkedAt: new Date().toISOString(), latestVersion, repo: source.repo }
@@ -431,7 +435,9 @@ const validateReleaseArchive = async (archive, latestVersion) => {
     }
     const shippedLayer = path.join(extracted, '_system')
     if (!(await exists(shippedLayer))) throw new Error('release archive validation failed: archive has no _system directory')
-    const archiveVersion = (await readFile(path.join(shippedLayer, 'VERSION'), 'utf8')).trim()
+    const versionPath = path.join(shippedLayer, 'VERSION')
+    if (!(await exists(versionPath))) throw new Error('release archive validation failed: archive has no _system/VERSION file')
+    const archiveVersion = (await readFile(versionPath, 'utf8')).trim()
     if (archiveVersion !== latestVersion) {
       throw new Error(`release archive validation failed: release ${latestVersion} contains _system version ${archiveVersion}`)
     }
