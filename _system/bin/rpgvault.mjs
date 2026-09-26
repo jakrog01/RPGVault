@@ -417,14 +417,18 @@ const pruneEmptyDirectories = async directory => {
 }
 
 const updateReport = (dryRun, entry, written, removed, backup) => {
-  const action = dryRun ? 'would replace' : 'replaced'
   const destination = entry.endsWith('/**') ? entry.slice(0, -3) : entry
+  if (written === 0 && removed === 0) {
+    console.log(`unchanged ${destination}`)
+    return
+  }
+  const action = dryRun ? 'would replace' : 'replaced'
   const suffix = dryRun ? '' : `, backup ${rel(backup)}`
   console.log(`${action} ${destination} (${written} written, ${removed} removed)${suffix}`)
 }
 
 const updateFileReport = (dryRun, action, item) => {
-  const prefix = dryRun ? `would ${action}` : action
+  const prefix = dryRun ? (action === 'replaced' ? 'would replace' : 'would remove') : action
   console.log(`${prefix} file: ${item}`)
 }
 

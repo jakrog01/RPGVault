@@ -41,7 +41,8 @@ node _system/bin/rpgvault.mjs update --latest [--dry-run]
 `--from` is required and names a release directory or a `.zip` release containing `_system/`.
 Without `--dry-run`, update copies the current `_system/` to `.rpgvault/backups/<timestamp>/`, replaces `_system/`, then replaces shipped `Home.md`, `README.md`, `CHANGELOG.md`, `docs/`, and `.github/` entries that the release provides before it runs `finalize-update`.
 Shipped folders are mirrored, so files absent from the release are removed; every overwritten or removed item is saved in that backup first.
-The report gives one line for each shipped entry with written and removed counts, names changed or removed files, and says when a release provides no entry to replace.
+The report gives one line for each shipped entry: `replaced` with written and removed counts plus a backup when work occurred, `unchanged` when the release matches it, or `kept` when the release provides none.
+It names only files actually changed or removed; previews use `would replace` and `would remove` for planned work.
 Finalisation runs migrations, reconciles managed Obsidian artifacts, refreshes the bundled plugin, writes installed version state, and runs `doctor`.
 Success forwards migration reports and the final `doctor` output, including the clean line.
 If finalisation fails, update forwards its migration and doctor output, then reports that `_system` was already replaced and names the backup directory.
