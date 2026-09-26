@@ -4,7 +4,7 @@ const production = process.argv[2] === 'production'
 await esbuild.build({
   entryPoints: ['src/main.ts'],
   bundle: true,
-  external: ['obsidian', 'electron', '@codemirror/*', '@lezer/*'],
+  external: ['obsidian', 'electron', '@codemirror/*', '@lezer/*', 'node:*'],
   format: 'cjs',
   target: 'es2020',
   logLevel: 'info',

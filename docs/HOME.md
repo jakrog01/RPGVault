@@ -54,6 +54,12 @@ Turn it off when creating preparation material that should not become the table'
 
 ## Templates and updates
 
+When a recorded update is newer than the installed RPGVault, the top of the home view shows its version and the command to run.
+On desktop Obsidian, choose **Install update** to open a report headed **Installing RPGVault update**.
+The report streams the CLI output while it works; a successful run ends with **Update complete. Reload Obsidian to use the new version.**
+If it cannot complete, the report says **RPGVault update failed.** and stays open so its output can be copied.
+On a phone, the banner still names the command, but no install button is available.
+
 The creation forms read `_local/templates/campaign.md`, `_local/templates/party.md`, or `_local/templates/run.md` first.
 When a same-named local template is absent, they read the matching file from `_system/templates/`.
 They replace the title and folder Templater values, remove other Templater commands, preserve non-form frontmatter, and write a complete note.

@@ -13,6 +13,11 @@ const updateResult = await updatePlugin.checkForUpdates()
 assert.equal(updateResult.latestVersion, "1.10.0", "release tags lose one v prefix")
 assert.equal(updateResult.newer, true, "numeric release segments compare by value")
 assert.equal(JSON.parse(updateEnvironment.adapterFiles.get(".rpgvault/state.json")).updateCheck.latestVersion, "1.10.0", "valid checks record their version")
+updateEnvironment.app.vault.adapter.getBasePath = () => process.cwd()
+const runnerOutput = []
+const runnerExit = await updatePlugin.commandRunner("-e", ["process.stdout.write('runner output')"], chunk => runnerOutput.push(chunk))
+assert.equal(runnerExit, 0, "the desktop runner resolves the child exit code")
+assert.equal(runnerOutput.join(""), "runner output", "the desktop runner forwards output chunks")
 
 // The full user-interface scenario with the shipped English strings.
 await runScenario()

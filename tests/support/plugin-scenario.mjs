@@ -602,6 +602,13 @@ export async function runScenario({ override } = {}) {
   addFile("Runs/Loose/Run.md", "", { type: "run", role: "gm", party: "[[Parties/Watch/Party]]" })
   await home.render()
   assert.ok(home.contentEl.textContent.includes(fill(s.homeUpdateAvailable, { version: "1.1.0", installed: "1.0.0" })))
+  plugin.commandRunner = async (_file, _args, onOutput) => {
+    onOutput("Scenario update output.\n")
+    return 0
+  }
+  await byLabel(home.contentEl, s.homeUpdateInstall)[0].click()
+  plugin.commandRunner = async () => { throw new Error("Scenario update error.") }
+  await byLabel(home.contentEl, s.homeUpdateInstall)[0].click()
   for (const filePath of ["Runs/Harbor/Run.md", "Runs/Player/Run.md", "Runs/Loose/Run.md", "Campaigns/Glass/Campaign.md", "Parties/Watch/Party.md"]) env.files.delete(filePath)
   await home.render()
   addFile("Runs/Harbor/Run.md", "# Harbor run", { type: "run", campaign: "[[Campaigns/Glass/Campaign]]", party: "[[Parties/Watch/Party]]" })

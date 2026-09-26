@@ -15,6 +15,9 @@ const STATE = ".rpgvault/state.json";
 
 const readJson = async (adapter: VaultAdapter, path: string): Promise<unknown> => JSON.parse(await adapter.read(path));
 
+/** Builds a path in the manifest-allowlisted shipped prefix. */
+export const shippedPath = (path: string): string => `${SHIPPED}${path}`;
+
 export const releaseVersion = (tag: unknown): string | null => {
   if (typeof tag !== "string") return null;
   const value = tag.replace(/^v/, "");

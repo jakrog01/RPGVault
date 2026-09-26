@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
+import { App, Notice, Platform, Plugin, PluginSettingTab, Setting, TFile } from "obsidian";
 import { AssistantView, ASSISTANT_VIEW } from "./assistant";
 import { CombatTracker, CombatView, COMBAT_VIEW, newCombat } from "./combat";
 import { listModels } from "./gemini";
@@ -30,6 +30,9 @@ export default class TableTools extends Plugin {
   index!: AssistantIndex;
   skills = new Map<string, Skill>();
   invalidSkillsKey = "";
+  commandRunner = (file: string, args: string[], onOutput: (chunk: string) => void): Promise<number> => {
+    return this.runDesktopCommand(file, args, onOutput);
+  };
   scopePolicy: ScopePolicy = { ...defaultScopePolicy, exclude: [...(defaultScopePolicy.exclude ?? [])], gm: [...defaultScopePolicy.gm], player: [...defaultScopePolicy.player] };
   private skillReloadTimer?: number;
   private homeRefreshTimer?: number;
@@ -186,6 +189,25 @@ export default class TableTools extends Plugin {
 
   async checkForUpdates(): Promise<ReleaseCheck> {
     return checkLatestRelease(this.app.vault.adapter);
+  }
+
+  /** Starts the shipped CLI only when Obsidian has the desktop Node runtime. */
+  private async runDesktopCommand(file: string, args: string[], onOutput: (chunk: string) => void): Promise<number> {
+    if (!Platform.isDesktopApp) throw new Error("The desktop runtime is unavailable");
+    const adapter = this.app.vault.adapter as typeof this.app.vault.adapter & {
+      getBasePath?: () => string;
+      basePath?: string;
+    };
+    const cwd = adapter.getBasePath?.() ?? adapter.basePath;
+    if (!cwd) throw new Error("The vault folder is unavailable");
+    const { spawn } = await import("node:child_process");
+    return new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [file, ...args], { cwd });
+      child.stdout.on("data", chunk => onOutput(String(chunk)));
+      child.stderr.on("data", chunk => onOutput(String(chunk)));
+      child.once("error", reject);
+      child.once("close", code => resolve(code ?? 1));
+    });
   }
 
   /** The opt-in startup check: at most once a day, and silent when it fails or finds nothing new. */

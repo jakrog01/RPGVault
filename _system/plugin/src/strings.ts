@@ -49,6 +49,10 @@ export const englishStrings = {
   homeExists: "That folder already contains a note.",
   homeRunNeedsCampaignParty: "Choose both a campaign and a party for the run.",
   homeUpdateAvailable: "RPGVault {version} is available; this vault has {installed}.",
+  homeUpdateInstall: "Install update",
+  homeUpdateRunning: "Installing RPGVault update",
+  homeUpdateReload: "Update complete. Reload Obsidian to use the new version.",
+  homeUpdateFailed: "RPGVault update failed.",
 
   // Settings
   settingsAssistantHeading: "Assistant (Google Gemini)",

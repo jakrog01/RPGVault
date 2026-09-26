@@ -1,7 +1,7 @@
-import { ItemView, Modal, Notice, Setting, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, Modal, Notice, Platform, Setting, TFile, WorkspaceLeaf } from "obsidian";
 import type TableTools from "./main";
 import { format } from "./strings";
-import { RecordedUpdate, recordedUpdate } from "./update";
+import { RecordedUpdate, recordedUpdate, shippedPath } from "./update";
 
 export const HOME_VIEW = "tt-home";
 
@@ -117,6 +117,9 @@ export class HomeView extends ItemView {
     const banner = root.createDiv("tt-home-update");
     banner.createDiv({ text: format(this.plugin.strings.homeUpdateAvailable, { version: update.latestVersion, installed: update.installedVersion }) });
     banner.createEl("code", { text: "node _system/bin/rpgvault.mjs update --latest" });
+    if (Platform.isDesktopApp) {
+      this.button(banner, this.plugin.strings.homeUpdateInstall, () => new UpdateModal(this.app, this.plugin).open());
+    }
   }
 
   private notes(): NoteSummary[] {
@@ -224,6 +227,22 @@ export class HomeView extends ItemView {
     const result = this.memberCount(file);
     this.memberCounts.set(file.path, result);
     return result;
+  }
+}
+
+class UpdateModal extends Modal {
+  constructor(app: HomeView["app"], private readonly plugin: TableTools) { super(app); }
+
+  async onOpen(): Promise<void> {
+    const s = this.plugin.strings;
+    this.contentEl.createEl("h3", { text: s.homeUpdateRunning });
+    const output = this.contentEl.createEl("pre", { cls: "tt-update-output" });
+    try {
+      const code = await this.plugin.commandRunner(shippedPath("bin/rpgvault.mjs"), ["update", "--latest"], chunk => output.appendText(chunk));
+      output.appendText(`\n${code === 0 ? s.homeUpdateReload : s.homeUpdateFailed}`);
+    } catch (error) {
+      output.appendText(`\n${s.homeUpdateFailed}\n${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }
 
