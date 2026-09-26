@@ -202,7 +202,8 @@ export default class TableTools extends Plugin {
     if (!cwd) throw new Error("The vault folder is unavailable");
     const { spawn } = await import("node:child_process");
     return new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, [file, ...args], { cwd });
+      // In Obsidian `process.execPath` is the Electron binary; this flag makes it run as Node.
+      const child = spawn(process.execPath, [file, ...args], { cwd, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } });
       child.stdout.on("data", chunk => onOutput(String(chunk)));
       child.stderr.on("data", chunk => onOutput(String(chunk)));
       child.once("error", reject);

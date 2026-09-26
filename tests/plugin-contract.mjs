@@ -12,6 +12,11 @@ const contents = await Promise.all(files.filter(file => file.endsWith(".ts")).ma
 // Obsidian runs on Electron, where browser dialogs are unsupported or silently return nothing.
 for (const [file, content] of [...contents, ["main.js", await readFile(path.join(root, "_system/plugin/main.js"), "utf8")]]) assert.equal(/\b(?:prompt|alert|confirm)\s*\(/.test(content), false, `${file} uses an unsupported browser dialog`)
 
+// Obsidian's own binary is what `process.execPath` names, so a spawned CLI needs the Node flag.
+const runner = contents.find(([file]) => file === "main.ts")[1]
+assert.ok(/ELECTRON_RUN_AS_NODE/.test(runner), "the desktop command runner runs Electron as Node")
+assert.ok(/ELECTRON_RUN_AS_NODE/.test(await readFile(path.join(root, "_system/plugin/main.js"), "utf8")), "the built bundle carries the Node flag")
+
 // Every string must be rendered, not merely referenced. The scenario runs with an override in
 // which every value carries a unique marker; the recorder captures all text that reaches the
 // screen, a notice, a setting, a command, a suggestion, or a note.
