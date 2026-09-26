@@ -105,6 +105,14 @@ const releaseSource = async () => {
   if (typeof source.repo !== 'string' || !source.repo || typeof source.api !== 'string' || !source.api) {
     throw new Error('release source is not configured')
   }
+  if (!/^[^/\s]+\/[^/\s]+$/.test(source.repo)) throw new Error(`release source has invalid repo "${source.repo}"`)
+  let api
+  try {
+    api = new URL(source.api)
+  } catch {
+    throw new Error(`release source has invalid api "${source.api}"`)
+  }
+  if (!['http:', 'https:'].includes(api.protocol)) throw new Error(`release source has invalid api "${source.api}"`)
   return source
 }
 

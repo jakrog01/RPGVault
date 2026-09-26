@@ -54,6 +54,7 @@ It fails when the release source is not configured, the host cannot be reached o
 Set `RPGVAULT_RELEASE_TIMEOUT` to a positive integer number of milliseconds to replace the 15,000 ms lookup deadline and 300,000 ms download deadline.
 `--check` and `--from` are mutually exclusive.
 The release source starts with `_system/manifest.json`, accepts optional `repo`, `asset`, and `api` overrides in `_local/release.json`, then lets `RPGVAULT_RELEASE_API` override the API base.
+Its `api` must be an absolute `http:` or `https:` URL, and its `repo` must be exactly `owner/name` with neither whitespace nor extra slashes.
 
 `--latest` runs the same explicit lookup, and if a newer release exists downloads its named asset with redirects enabled.
 It validates that the archive contains `_system/` and that `_system/VERSION` matches the release version before writing into the vault.

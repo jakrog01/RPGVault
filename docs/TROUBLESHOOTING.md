@@ -126,6 +126,9 @@ Point `--from` at the release root that contains `_system/`, rather than at its 
 `release source is not configured` means neither the shipped manifest nor `_local/release.json` provides both a release repository and API base.
 Restore the shipped release block or set the missing local override; `RPGVAULT_RELEASE_API` can replace only the API base.
 
+`release source has invalid api "<value>"` or `release source has invalid repo "<value>"` means a configured value cannot identify a release host.
+Use an absolute `http:` or `https:` API URL and an exact `owner/name` repository with no whitespace or extra slashes, then retry.
+
 `release check timed out` or `release download timed out: <asset>` means the release host did not answer before its deadline.
 Check the host and connection, then retry; set `RPGVAULT_RELEASE_TIMEOUT` to a positive millisecond value only when a longer deadline is appropriate.
 
