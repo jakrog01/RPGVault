@@ -15,6 +15,8 @@ Edits to shipped root notes and documentation are retained in the backup; files 
 If the installed CLI predates the network release support introduced in prompt 27, first obtain a release archive and complete one offline `update --from` update below.
 That refreshes the shipped CLI; after it succeeds, the Table Tools update check and desktop install button can use the configured release host.
 
+A vault still running the 1.0.0 CLI performs its own upgrade, so its first hop must be the offline path below: `--check` and `--latest` do not exist in that CLI, and the wider shipped layer arrives on the following update. That first upgrade also prints nothing, because the 1.0.0 CLI discards what finalisation reports; run `doctor` afterwards to confirm the result.
+
 For an offline update, unpack a release and run:
 
 ```text

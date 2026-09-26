@@ -134,6 +134,9 @@ export const releaseBody = (tag, downloadUrl, assetName = "RPGVault.zip") => ({
   assets: [{ name: assetName, browser_download_url: downloadUrl, size: 1 }],
 })
 
+/** The version every cloned test vault reports, whatever this checkout is at. */
+export const CLONE_VERSION = "1.0.0"
+
 /**
  * A temporary vault that looks like an installed clone of this repository: shipped layer,
  * managed Obsidian files, one note of owner content and one `_local` override.
@@ -141,6 +144,11 @@ export const releaseBody = (tag, downloadUrl, assetName = "RPGVault.zip") => ({
 export async function cloneVault(prefix) {
   const vault = await mkdtemp(path.join(os.tmpdir(), prefix))
   await cp(repository, vault, { recursive: true, filter: item => !skipped(item) })
+  // The clone is pinned to a fixed baseline so releasing a new version cannot turn an
+  // "install this newer release" test into an "already up to date" one.
+  await writeFile(path.join(vault, "_system/VERSION"), `${CLONE_VERSION}\n`)
+  const state = JSON.parse(await readFile(path.join(vault, ".rpgvault/state.json"), "utf8"))
+  await writeFile(path.join(vault, ".rpgvault/state.json"), `${JSON.stringify({ ...state, installedVersion: CLONE_VERSION }, null, 2)}\n`)
   await mkdir(path.join(vault, "Campaigns/User"), { recursive: true })
   await mkdir(path.join(vault, "_local/templates"), { recursive: true })
   await writeFile(path.join(vault, "Campaigns/User/Campaign.md"), "owner content\n")
