@@ -116,14 +116,21 @@ const compareVersions = (left, right) => {
   return 0
 }
 
+const releaseTimeout = fallback => {
+  const override = Number(process.env.RPGVAULT_RELEASE_TIMEOUT)
+  return Number.isInteger(override) && override > 0 ? override : fallback
+}
+
 const checkRelease = async record => {
   const source = await releaseSource()
   let response
   try {
     response = await fetch(`${source.api.replace(/\/$/, '')}/repos/${source.repo}/releases/latest`, {
-      headers: { accept: 'application/vnd.github+json' }
+      headers: { accept: 'application/vnd.github+json' },
+      signal: AbortSignal.timeout(releaseTimeout(15000))
     })
-  } catch {
+  } catch (error) {
+    if (error.name === 'TimeoutError' || error.name === 'AbortError') throw new Error('release check timed out')
     throw new Error('release check failed: could not reach the release host')
   }
   if (!response.ok) throw new Error(`release check failed: host returned ${response.status}`)
@@ -394,8 +401,13 @@ const installUpdate = async (source, dryRun) => {
 const downloadReleaseArchive = async (url, asset) => {
   let response
   try {
-    response = await fetch(url, { headers: { accept: 'application/octet-stream' }, redirect: 'follow' })
-  } catch {
+    response = await fetch(url, {
+      headers: { accept: 'application/octet-stream' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(releaseTimeout(300000))
+    })
+  } catch (error) {
+    if (error.name === 'TimeoutError' || error.name === 'AbortError') throw new Error(`release download timed out: ${asset}`)
     throw new Error(`release download failed: could not download ${asset}`)
   }
   if (!response.ok) throw new Error(`release download failed: host returned ${response.status}`)
