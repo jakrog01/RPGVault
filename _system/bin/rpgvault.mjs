@@ -162,6 +162,7 @@ const checkRelease = async record => {
   if (record) {
     const state = await loadState()
     state.updateCheck = { checkedAt: new Date().toISOString(), latestVersion, repo: source.repo }
+    await mkdir(path.dirname(statePath), { recursive: true })
     await writeJson(statePath, state)
   }
   return { source, release, latestVersion, newer: compareVersions(latestVersion, version) > 0 }
@@ -485,7 +486,8 @@ const update = async args => {
       console.log(`up to date (${version})`)
       return
     }
-    const asset = result.release.assets?.find(item => item?.name === result.source.asset)
+    if (!Array.isArray(result.release.assets)) throw new Error('release download failed: release lists no assets')
+    const asset = result.release.assets.find(item => item?.name === result.source.asset)
     if (!asset || typeof asset.browser_download_url !== 'string') {
       throw new Error(`release download failed: release has no ${result.source.asset} asset`)
     }

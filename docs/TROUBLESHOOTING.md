@@ -141,6 +141,9 @@ Publish a release archive with `_system/VERSION` matching its release tag; do no
 `update accepts either --check or --from, not both` means a release check was given an offline source path.
 Run `update --check` alone, or use `update --from <directory-or-zip>` for an offline update.
 
+`release download failed: release lists no assets` means the release host answered with something other than a list of release files.
+Check that the release exists and carries its archive; a proxy or an error page in place of the release API also produces this.
+
 `_system was replaced but finalisation failed; backup is .rpgvault/backups/<timestamp>` means the new shipped layer and its state were installed, but a migration, managed artifact refresh, or doctor found a problem.
 Read the forwarded output, fix the reported violations and run `doctor`; restoring the named backup remains the owner's decision because migrations may already have run.
 
