@@ -12,6 +12,9 @@ The updater checks for a newer release, downloads and validates its archive, the
 It replaces `_system`, shipped root notes and documentation, mirrors shipped folders such as `docs/` and `.github/`, reconciles only manifest-managed Obsidian files, runs pending migrations, rebuilds the bundled plugin, and runs `doctor`.
 Edits to shipped root notes and documentation are retained in the backup; files placed inside a mirrored shipped folder but absent from the release are also removed and backed up.
 
+If the installed CLI predates the network release support introduced in prompt 27, first obtain a release archive and complete one offline `update --from` update below.
+That refreshes the shipped CLI; after it succeeds, the Table Tools update check and desktop install button can use the configured release host.
+
 For an offline update, unpack a release and run:
 
 ```text

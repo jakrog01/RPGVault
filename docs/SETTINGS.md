@@ -38,6 +38,7 @@ The **API key**, Model, and assistant request flow use Google Gemini when you se
 
 - **Check for updates** — a button, not a stored setting. It asks the release host named in `_system/manifest.json` (or `_local/release.json`) whether a newer RPGVault exists, records the answer in `.rpgvault/state.json`, and downloads nothing.
 - **Check once a day** — `checkForUpdatesOnStart`; default: `false`. Asks at most once every 24 hours after Obsidian restores the layout, says so only when a newer release exists, and stays silent when the host cannot be reached.
+- The table home uses that recorded result for its update banner; see [Table Tools at the table](TABLE-TOOLS.md) for the desktop install button and its CLI report.
 
 ## Table home
 

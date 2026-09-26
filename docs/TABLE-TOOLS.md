@@ -78,3 +78,11 @@ Save an encounter set when a group should recur later.
 Export the combat to an open session note before clearing it.
 The Settings reference documents bestiary, party, hit-point, group-initiative, and attack-roll controls.
 See [Assistant retrieval](ASSISTANT.md) for how combat state can be attached to a request.
+
+## RPGVault updates
+
+When the table home has a recorded release newer than this vault, it shows an update banner with both versions and the CLI command.
+On desktop Obsidian, its **Install update** button runs `node _system/bin/rpgvault.mjs update --latest` through the shipped CLI.
+The modal streams the CLI report, including migration and doctor output, and remains open if the update fails so the report can be read or copied.
+After a successful report it asks you to reload Obsidian; reloading is your decision, not an automatic plugin action.
+Phones show the banner and command but cannot install the update from Table Tools.
