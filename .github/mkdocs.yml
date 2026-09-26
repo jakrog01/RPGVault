@@ -1,0 +1,24 @@
+site_name: RPGVault manual
+site_url: https://jakrog01.github.io/RPGVault/
+docs_dir: ../docs
+site_dir: ../.github/site
+theme:
+  name: material
+nav:
+  - Getting started: GETTING-STARTED.md
+  - RPGVault concepts: CONCEPTS.md
+  - Architecture: ARCHITECTURE.md
+  - CLI reference: CLI.md
+  - Troubleshooting: TROUBLESHOOTING.md
+  - Table home: HOME.md
+  - Table Tools at the table: TABLE-TOOLS.md
+  - Table Tools settings: SETTINGS.md
+  - Assistant retrieval: ASSISTANT.md
+  - Customising Table Tools: CUSTOMISING.md
+  - Authoring systems: AUTHORING-SYSTEMS.md
+  - Adopting an Existing Vault: ADOPTING.md
+  - Keeping a vault up to date: UPDATING.md
+  - Upgrading: UPGRADING.md
+  - ADR 0001 - release zip plus migrations: adr/0001-update-mechanism.md
+  - ADR 0002 - active run pointer location: adr/0002-active-pointer-location.md
+  - ADR 0003 - assistant retrieval: adr/0003-assistant-retrieval.md
