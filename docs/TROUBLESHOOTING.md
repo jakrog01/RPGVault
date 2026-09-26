@@ -141,6 +141,9 @@ Publish a release archive with `_system/VERSION` matching its release tag; do no
 `update accepts either --check or --from, not both` means a release check was given an offline source path.
 Run `update --check` alone, or use `update --from <directory-or-zip>` for an offline update.
 
+`_system was replaced but finalisation failed; backup is .rpgvault/backups/<timestamp>` means the new shipped layer and its state were installed, but a migration, managed artifact refresh, or doctor found a problem.
+Read the forwarded output, fix the reported violations and run `doctor`; restoring the named backup remains the owner's decision because migrations may already have run.
+
 An unreadable `community-plugins.json` is reported by doctor as the invalid community plugin list violation above.
 Update repairs malformed JSON, non-arrays, and non-string entries while preserving valid local plugin ids.
 

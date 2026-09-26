@@ -407,9 +407,16 @@ const installUpdate = async (source, dryRun) => {
   await cp(path.join(root, '_system'), path.join(backup, '_system'), { recursive: true })
   await rm(path.join(root, '_system'), { recursive: true })
   await cp(path.join(from, '_system'), path.join(root, '_system'), { recursive: true })
-  const result = await exec('node', [path.join(root, '_system', 'bin', 'rpgvault.mjs'), 'finalize-update'], { cwd: root })
-  process.stdout.write(result.stdout)
-  process.stderr.write(result.stderr)
+  try {
+    const result = await exec('node', [path.join(root, '_system', 'bin', 'rpgvault.mjs'), 'finalize-update'], { cwd: root })
+    process.stdout.write(result.stdout)
+    process.stderr.write(result.stderr)
+  } catch (error) {
+    process.stdout.write(error.stdout ?? '')
+    process.stderr.write(error.stderr ?? '')
+    if (extracted) await rm(extracted, { recursive: true })
+    throw new Error(`_system was replaced but finalisation failed; backup is ${rel(backup)}`)
+  }
   if (extracted) await rm(extracted, { recursive: true })
 }
 

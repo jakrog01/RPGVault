@@ -42,6 +42,8 @@ node _system/bin/rpgvault.mjs update --latest [--dry-run]
 Without `--dry-run`, update copies the current `_system/` to `.rpgvault/backups/<timestamp>/`, replaces `_system/`, then runs `finalize-update`.
 Finalisation runs migrations, reconciles managed Obsidian artifacts, refreshes the bundled plugin, writes installed version state, and runs `doctor`.
 Success forwards migration reports and the final `doctor` output, including the clean line.
+If finalisation fails, update forwards its migration and doctor output, then reports that `_system` was already replaced and names the backup directory.
+It still exits non-zero; fix the reported issue and run `doctor`, or restore the named backup if that is the owner's decision.
 With `--dry-run`, it prints `would replace _system from <path>` and runs migrations in dry-run mode without replacing `_system/`.
 It fails when `--from` is absent, the source does not exist, or the source has no `_system` directory.
 Run it to install an offline release; see [Upgrading](UPGRADING.md) for release workflow.
